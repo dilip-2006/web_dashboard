@@ -37,7 +37,8 @@ export default function App() {
     sendGoal,
     sendVelocity,
     rosUrl,
-    connectRos
+    connectRos,
+    disconnectRos
   } = useRos();
 
   // Active Top-Level Template: 'COCKPIT' | 'DISPATCHER' | 'DIAGNOSTICS' | 'ANALYTICS'
@@ -101,6 +102,7 @@ export default function App() {
         systemState={systemState}
         rosUrl={rosUrl}
         onConnectRos={connectRos}
+        onDisconnectRos={disconnectRos}
         onEmergencyStop={handleEmergencyStop}
         onResetEmergencyStop={handleResetEmergencyStop}
         activeTemplate={activeTemplate}
@@ -123,7 +125,7 @@ export default function App() {
       />
 
       {/* 3. Main Operational Viewport */}
-      <main className="flex-1 p-3 md:p-4 flex flex-col gap-3 max-w-[1920px] w-full mx-auto">
+      <main className="flex-1 p-2 sm:p-3 md:p-4 flex flex-col gap-2.5 sm:gap-3 max-w-[1920px] w-full mx-auto overflow-x-hidden">
         {/* TEMPLATE 1: OPERATIONS COCKPIT */}
         {activeTemplate === 'COCKPIT' && (
           <div className="flex flex-col gap-3 flex-1">
@@ -155,9 +157,9 @@ export default function App() {
             />
 
             {/* Central Cockpit Workspace: Interactive Map (8 cols) + Multi-Tab Panel (4 cols) */}
-            <div className="grid grid-cols-1 lg:grid-cols-12 gap-3 items-stretch min-h-[560px]">
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-3 items-stretch min-h-0 lg:min-h-[560px]">
               {/* Main 2D Map & LiDAR Radar */}
-              <div className="lg:col-span-8 flex flex-col h-full min-h-[500px]">
+              <div className="lg:col-span-8 flex flex-col h-full min-h-[380px] sm:min-h-[480px]">
                 <MapViewer
                   mapData={mapData}
                   robotPose={robotPose}
@@ -187,54 +189,54 @@ export default function App() {
               </div>
 
               {/* Integrated Multi-Tab Mission Control Panel (4 cols) */}
-              <div className="lg:col-span-4 flex flex-col panel overflow-hidden min-h-[500px]">
+              <div className="lg:col-span-4 flex flex-col panel overflow-hidden min-h-[420px] sm:min-h-[500px]">
                 {/* Control Panel Tab Navigation */}
-                <div className="flex items-center bg-slate-950 border-b border-slate-800 p-1.5 gap-1">
+                <div className="flex items-center bg-slate-950 border-b border-slate-800 p-1 sm:p-1.5 gap-1 overflow-x-auto no-scrollbar">
                   <button
                     onClick={() => setControlTab('TELEOP')}
-                    className={`flex-1 py-2 px-2.5 rounded-lg text-xs font-mono font-extrabold flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
+                    className={`flex-1 py-2 px-1.5 sm:px-2.5 rounded-lg text-[11px] sm:text-xs font-mono font-extrabold flex items-center justify-center gap-1 sm:gap-1.5 transition-all cursor-pointer whitespace-nowrap ${
                       controlTab === 'TELEOP'
                         ? 'bg-yellow-400 text-slate-950 shadow-xs border border-yellow-500 font-extrabold'
                         : 'text-slate-400 hover:text-white hover:bg-slate-800/80'
                     }`}
                   >
-                    <Gamepad2 className="w-3.5 h-3.5" />
+                    <Gamepad2 className="w-3.5 h-3.5 shrink-0" />
                     <span>DRIVE</span>
                   </button>
 
                   <button
                     onClick={() => setControlTab('LOCATIONS')}
-                    className={`flex-1 py-2 px-2.5 rounded-lg text-xs font-mono font-extrabold flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
+                    className={`flex-1 py-2 px-1.5 sm:px-2.5 rounded-lg text-[11px] sm:text-xs font-mono font-extrabold flex items-center justify-center gap-1 sm:gap-1.5 transition-all cursor-pointer whitespace-nowrap ${
                       controlTab === 'LOCATIONS'
                         ? 'bg-yellow-400 text-slate-950 shadow-xs border border-yellow-500 font-extrabold'
                         : 'text-slate-400 hover:text-white hover:bg-slate-800/80'
                     }`}
                   >
-                    <MapPin className="w-3.5 h-3.5" />
+                    <MapPin className="w-3.5 h-3.5 shrink-0" />
                     <span>POIS ({locations.length})</span>
                   </button>
 
                   <button
                     onClick={() => setControlTab('MAPS')}
-                    className={`flex-1 py-2 px-2.5 rounded-lg text-xs font-mono font-extrabold flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
+                    className={`flex-1 py-2 px-1.5 sm:px-2.5 rounded-lg text-[11px] sm:text-xs font-mono font-extrabold flex items-center justify-center gap-1 sm:gap-1.5 transition-all cursor-pointer whitespace-nowrap ${
                       controlTab === 'MAPS'
                         ? 'bg-yellow-400 text-slate-950 shadow-xs border border-yellow-500 font-extrabold'
                         : 'text-slate-400 hover:text-white hover:bg-slate-800/80'
                     }`}
                   >
-                    <Layers className="w-3.5 h-3.5" />
+                    <Layers className="w-3.5 h-3.5 shrink-0" />
                     <span>MAPS</span>
                   </button>
 
                   <button
                     onClick={() => setControlTab('DIAGNOSTICS')}
-                    className={`flex-1 py-2 px-2.5 rounded-lg text-xs font-mono font-extrabold flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
+                    className={`flex-1 py-2 px-1.5 sm:px-2.5 rounded-lg text-[11px] sm:text-xs font-mono font-extrabold flex items-center justify-center gap-1 sm:gap-1.5 transition-all cursor-pointer whitespace-nowrap ${
                       controlTab === 'DIAGNOSTICS'
                         ? 'bg-yellow-400 text-slate-950 shadow-xs border border-yellow-500 font-extrabold'
                         : 'text-slate-400 hover:text-white hover:bg-slate-800/80'
                     }`}
                   >
-                    <Activity className="w-3.5 h-3.5" />
+                    <Activity className="w-3.5 h-3.5 shrink-0" />
                     <span>HEALTH</span>
                   </button>
                 </div>
@@ -360,12 +362,12 @@ export default function App() {
       </main>
 
       {/* Footer */}
-      <footer className="px-6 py-2.5 bg-slate-900 border-t border-slate-800 text-center text-[10px] font-mono text-slate-400 flex flex-wrap items-center justify-between gap-2 shadow-md">
+      <footer className="px-4 sm:px-6 py-2 sm:py-2.5 bg-slate-900 border-t border-slate-800 text-center text-[10px] font-mono text-slate-400 flex flex-col sm:flex-row items-center justify-between gap-2 shadow-md">
         <div className="flex items-center gap-2">
           <span className="h-2 w-2 rounded-full bg-yellow-400 animate-pulse"></span>
           <span className="font-bold text-white">BumbleB Autonomous Mobile Robot Fleet Platform</span>
         </div>
-        <div>
+        <div className="hidden md:block">
           Gazebo Classic simulation • ROS 2 Humble • WebSocket :9090 • Diff-Drive DWB Navigator
         </div>
         <div className="text-slate-950 font-extrabold px-2 py-0.5 rounded bg-yellow-400 border border-yellow-500">

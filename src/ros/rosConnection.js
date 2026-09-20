@@ -29,6 +29,7 @@ class ROSConnectionManager {
     };
 
     this.topics = {};
+    this.manualDisconnect = false;
     const savedUrl = typeof window !== 'undefined' ? localStorage.getItem('rosbridge_url') : null;
     const configuredUrl = import.meta.env.VITE_ROSBRIDGE_URL;
     const defaultHost = (typeof window !== 'undefined' && window.location.hostname) ? window.location.hostname : 'localhost';
@@ -36,6 +37,7 @@ class ROSConnectionManager {
   }
 
   connect(customUrl = null) {
+    this.manualDisconnect = false;
     if (customUrl && customUrl !== this.url) {
       this.url = customUrl;
       if (typeof window !== 'undefined') {
@@ -92,7 +94,35 @@ class ROSConnectionManager {
     }
   }
 
+  disconnect() {
+    this.manualDisconnect = true;
+    if (this.reconnectTimer) {
+      clearTimeout(this.reconnectTimer);
+      this.reconnectTimer = null;
+    }
+
+    // Clean up existing topic subscriptions
+    Object.values(this.topics).forEach((t) => {
+      try {
+        if (t && typeof t.unsubscribe === 'function') t.unsubscribe();
+      } catch (_) {}
+    });
+    this.topics = {};
+
+    if (this.ros) {
+      try {
+        this.ros.close();
+      } catch (_) {}
+      this.ros = null;
+    }
+
+    this.connected = false;
+    this.connecting = false;
+    this._emit('close');
+  }
+
   _scheduleReconnect() {
+    if (this.manualDisconnect) return;
     if (!this.reconnectTimer) {
       this.reconnectTimer = setTimeout(() => {
         this.reconnectTimer = null;

@@ -108,11 +108,13 @@ export default function Teleop({ connected, isEmergencyStop, onSendVelocity }) {
   // Virtual Joystick pointer events
   const handleJoystickStart = (e) => {
     if (isEmergencyStop) return;
+    if (e.cancelable) e.preventDefault();
     setJoystickActive(true);
     handleJoystickMove(e);
   };
 
   const handleJoystickMove = (e) => {
+    if (e.cancelable) e.preventDefault();
     if (!joystickContainerRef.current) return;
     const rect = joystickContainerRef.current.getBoundingClientRect();
     const centerX = rect.left + rect.width / 2;
@@ -138,7 +140,8 @@ export default function Teleop({ connected, isEmergencyStop, onSendVelocity }) {
     joystickPosRef.current = pos;
   };
 
-  const handleJoystickEnd = () => {
+  const handleJoystickEnd = (e) => {
+    if (e && e.cancelable) e.preventDefault();
     setJoystickActive(false);
     stopRobot();
   };
@@ -177,7 +180,7 @@ export default function Teleop({ connected, isEmergencyStop, onSendVelocity }) {
               onTouchStart={handleJoystickStart}
               onTouchMove={joystickActive ? handleJoystickMove : undefined}
               onTouchEnd={handleJoystickEnd}
-              className={`relative h-36 w-36 rounded-full bg-slate-200 border-2 transition-all flex items-center justify-center cursor-pointer select-none ${
+              className={`relative h-36 w-36 rounded-full bg-slate-200 border-2 transition-all flex items-center justify-center cursor-pointer select-none touch-none ${
                 joystickActive ? 'border-yellow-500 ring-4 ring-yellow-400/20' : 'border-slate-300 hover:border-slate-400'
               } ${isEmergencyStop ? 'opacity-40 cursor-not-allowed' : ''}`}
             >
@@ -188,7 +191,7 @@ export default function Teleop({ connected, isEmergencyStop, onSendVelocity }) {
 
               {/* Knob */}
               <div
-                className={`h-12 w-12 rounded-full border flex items-center justify-center transition-transform duration-75 shadow-sm ${
+                className={`h-12 w-12 rounded-full border flex items-center justify-center transition-transform duration-75 shadow-sm select-none touch-none ${
                   joystickActive
                     ? 'bg-yellow-400 border-yellow-500 text-slate-950 ring-2 ring-yellow-300'
                     : 'bg-slate-900 border-slate-700 text-yellow-400'
@@ -212,7 +215,7 @@ export default function Teleop({ connected, isEmergencyStop, onSendVelocity }) {
               WASD / ARROW KEYS
             </div>
 
-            <div className="flex flex-col items-center gap-1.5">
+            <div className="flex flex-col items-center gap-1.5 select-none">
               {/* Up */}
               <button
                 onPointerDown={(e) => { e.preventDefault(); startButtonDrive(maxLin, 0.0); }}
@@ -220,7 +223,7 @@ export default function Teleop({ connected, isEmergencyStop, onSendVelocity }) {
                 onPointerCancel={stopRobot}
                 onPointerLeave={stopRobot}
                 disabled={isEmergencyStop}
-                className={`h-10 w-12 rounded-lg flex items-center justify-center border font-mono font-bold transition-all active:scale-95 cursor-pointer ${
+                className={`h-11 w-13 rounded-lg flex items-center justify-center border font-mono font-bold transition-all active:scale-95 cursor-pointer touch-none select-none ${
                   activeKeys['w'] || activeKeys['arrowup']
                     ? 'bg-yellow-400 text-slate-950 border-yellow-500 shadow-sm'
                     : 'bg-slate-900 text-white border-slate-800 hover:bg-slate-800 hover:text-yellow-400'
@@ -238,7 +241,7 @@ export default function Teleop({ connected, isEmergencyStop, onSendVelocity }) {
                   onPointerCancel={stopRobot}
                   onPointerLeave={stopRobot}
                   disabled={isEmergencyStop}
-                  className={`h-10 w-12 rounded-lg flex items-center justify-center border font-mono font-bold transition-all active:scale-95 cursor-pointer ${
+                  className={`h-11 w-13 rounded-lg flex items-center justify-center border font-mono font-bold transition-all active:scale-95 cursor-pointer touch-none select-none ${
                     activeKeys['a'] || activeKeys['arrowleft']
                       ? 'bg-yellow-400 text-slate-950 border-yellow-500 shadow-sm'
                       : 'bg-slate-900 text-white border-slate-800 hover:bg-slate-800 hover:text-yellow-400'
@@ -250,7 +253,7 @@ export default function Teleop({ connected, isEmergencyStop, onSendVelocity }) {
 
                 <button
                   onClick={stopRobot}
-                  className="h-10 w-14 rounded-lg flex items-center justify-center bg-red-600 hover:bg-red-700 text-white font-mono font-bold transition-all shadow-xs active:scale-95 text-[11px]"
+                  className="h-11 w-15 rounded-lg flex items-center justify-center bg-red-600 hover:bg-red-700 text-white font-mono font-bold transition-all shadow-xs active:scale-95 text-[11px] touch-none select-none cursor-pointer"
                   title="Brake / Stop (Spacebar)"
                 >
                   <Square className="w-3.5 h-3.5 fill-white mr-1" />
@@ -263,7 +266,7 @@ export default function Teleop({ connected, isEmergencyStop, onSendVelocity }) {
                   onPointerCancel={stopRobot}
                   onPointerLeave={stopRobot}
                   disabled={isEmergencyStop}
-                  className={`h-10 w-12 rounded-lg flex items-center justify-center border font-mono font-bold transition-all active:scale-95 cursor-pointer ${
+                  className={`h-11 w-13 rounded-lg flex items-center justify-center border font-mono font-bold transition-all active:scale-95 cursor-pointer touch-none select-none ${
                     activeKeys['d'] || activeKeys['arrowright']
                       ? 'bg-yellow-400 text-slate-950 border-yellow-500 shadow-sm'
                       : 'bg-slate-900 text-white border-slate-800 hover:bg-slate-800 hover:text-yellow-400'
@@ -281,7 +284,7 @@ export default function Teleop({ connected, isEmergencyStop, onSendVelocity }) {
                 onPointerCancel={stopRobot}
                 onPointerLeave={stopRobot}
                 disabled={isEmergencyStop}
-                className={`h-10 w-12 rounded-lg flex items-center justify-center border font-mono font-bold transition-all active:scale-95 cursor-pointer ${
+                className={`h-11 w-13 rounded-lg flex items-center justify-center border font-mono font-bold transition-all active:scale-95 cursor-pointer touch-none select-none ${
                   activeKeys['s'] || activeKeys['arrowdown']
                     ? 'bg-yellow-400 text-slate-950 border-yellow-500 shadow-sm'
                     : 'bg-slate-900 text-white border-slate-800 hover:bg-slate-800 hover:text-yellow-400'
@@ -296,12 +299,12 @@ export default function Teleop({ connected, isEmergencyStop, onSendVelocity }) {
 
         {/* Speed Limit Presets & Sliders */}
         <div className="pt-3 border-t border-slate-300 flex flex-col gap-2.5">
-          <div className="flex items-center justify-between text-xs font-mono">
+          <div className="flex flex-wrap items-center justify-between gap-2 text-xs font-mono">
             <span className="text-slate-900 flex items-center gap-1.5 font-bold">
               <Zap className="w-3.5 h-3.5 text-yellow-500" />
               SPEED PRESETS:
             </span>
-            <div className="flex items-center gap-1.5">
+            <div className="flex items-center gap-1.5 flex-wrap">
               <button
                 onClick={() => setSpeedPreset(0.12, 0.35)}
                 className={`px-2.5 py-1 rounded text-[11px] font-bold transition-all cursor-pointer ${

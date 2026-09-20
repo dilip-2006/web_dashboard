@@ -239,7 +239,8 @@ export function useRos() {
     sendGoal,
     sendVelocity,
     rosUrl: rosConnection.url,
-    connectRos: (url) => rosConnection.connect(url)
+    connectRos: (url) => rosConnection.connect(url),
+    disconnectRos: () => rosConnection.disconnect()
   };
 }
 

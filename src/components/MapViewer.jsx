@@ -555,6 +555,90 @@ export default function MapViewer({ mapData, robotPose, laserScan, globalPath, l
     setDragStart(null);
   };
 
+  const pinchDistRef = useRef(null);
+
+  // Mobile Touch Handlers: single-finger pan/goal and two-finger pinch-to-zoom
+  const handleTouchStart = (e) => {
+    if (e.touches.length === 1) {
+      const touch = e.touches[0];
+      const rect = canvasRef.current.getBoundingClientRect();
+      const clickX = touch.clientX - rect.left;
+      const clickY = touch.clientY - rect.top;
+      const mPos = canvasToMap(clickX, clickY, rect.width, rect.height);
+      setMouseMapPos(mPos);
+
+      if (toolMode === 'NAV_GOAL') {
+        setGoalDragStart({ x: mPos.x, y: mPos.y });
+        setGoalDragCurrent({ x: mPos.x, y: mPos.y });
+      } else if (toolMode === 'MARK_LOC') {
+        onSaveLocationAtPose?.(mPos.x, mPos.y, 0.0);
+        setToolMode('PAN');
+      } else {
+        setDragStart({ x: touch.clientX, y: touch.clientY, camX: camera.x, camY: camera.y });
+      }
+    } else if (e.touches.length === 2) {
+      const dist = Math.hypot(
+        e.touches[0].clientX - e.touches[1].clientX,
+        e.touches[0].clientY - e.touches[1].clientY
+      );
+      pinchDistRef.current = dist;
+    }
+  };
+
+  const handleTouchMove = (e) => {
+    if (e.touches.length === 1) {
+      const touch = e.touches[0];
+      const rect = canvasRef.current.getBoundingClientRect();
+      const clickX = touch.clientX - rect.left;
+      const clickY = touch.clientY - rect.top;
+      const mPos = canvasToMap(clickX, clickY, rect.width, rect.height);
+      setMouseMapPos(mPos);
+
+      if (goalDragStart) {
+        setGoalDragCurrent({ x: mPos.x, y: mPos.y });
+      } else if (dragStart) {
+        const dx = (touch.clientX - dragStart.x) / camera.scale;
+        const dy = (touch.clientY - dragStart.y) / camera.scale;
+        setCamera(prev => ({
+          ...prev,
+          x: dragStart.camX - dx,
+          y: dragStart.camY + dy
+        }));
+      }
+    } else if (e.touches.length === 2 && pinchDistRef.current) {
+      const newDist = Math.hypot(
+        e.touches[0].clientX - e.touches[1].clientX,
+        e.touches[0].clientY - e.touches[1].clientY
+      );
+      const ratio = newDist / pinchDistRef.current;
+      if (Math.abs(ratio - 1) > 0.015) {
+        setCamera(prev => ({
+          ...prev,
+          scale: Math.max(8, Math.min(300, prev.scale * ratio))
+        }));
+        pinchDistRef.current = newDist;
+      }
+    }
+  };
+
+  const handleTouchEnd = (e) => {
+    if (goalDragStart) {
+      const current = goalDragCurrent || goalDragStart;
+      const dx = current.x - goalDragStart.x;
+      const dy = current.y - goalDragStart.y;
+      const yaw = Math.hypot(dx, dy) > 0.15 ? Math.atan2(dy, dx) : 0.0;
+
+      setActiveGoal({ x: goalDragStart.x, y: goalDragStart.y, yaw });
+      onSendGoal?.(goalDragStart.x, goalDragStart.y, yaw);
+
+      setGoalDragStart(null);
+      setGoalDragCurrent(null);
+      setToolMode('PAN');
+    }
+    setDragStart(null);
+    pinchDistRef.current = null;
+  };
+
   const handleWheel = (e) => {
     e.preventDefault();
     const zoomFactor = e.deltaY < 0 ? 1.15 : 0.85;
@@ -600,27 +684,27 @@ export default function MapViewer({ mapData, robotPose, laserScan, globalPath, l
     <div
       ref={containerRef}
       className={`panel flex flex-col flex-1 relative overflow-hidden select-none ${
-        isFullscreen ? 'fixed inset-0 z-50 rounded-none w-screen h-screen' : 'h-full min-h-[460px]'
+        isFullscreen ? 'fixed inset-0 z-50 rounded-none w-screen h-screen' : 'h-full min-h-[360px] sm:min-h-[460px]'
       }`}
     >
       {/* Map Header Toolbar */}
-      <div className="panel-header py-2 px-3.5 bg-slate-900 border-b border-slate-800 text-white">
+      <div className="panel-header py-2 px-3 sm:px-3.5 bg-slate-900 border-b border-slate-800 text-white">
         <div className="flex items-center gap-2">
           <div className="p-1 rounded bg-slate-800 text-yellow-400">
             <Compass className="w-3.5 h-3.5 animate-spin-slow" />
           </div>
-          <span className="text-xs font-bold tracking-wide text-white font-mono">
+          <span className="text-xs font-bold tracking-wide text-white font-mono truncate">
             2D OCCUPANCY GRID & AUTONOMY MAP
           </span>
         </div>
 
         {/* Real-time map telemetry HUD */}
-        <div className="flex items-center gap-4 font-mono text-[11px] text-slate-400">
+        <div className="flex items-center gap-3 sm:gap-4 font-mono text-[10px] sm:text-[11px] text-slate-400">
           <div className="hidden sm:flex items-center gap-1.5">
             <span>CURSOR:</span>
             <span className="text-slate-200 font-semibold">({mouseMapPos.x.toFixed(2)}m, {mouseMapPos.y.toFixed(2)}m)</span>
           </div>
-          <div className="flex items-center gap-1.5">
+          <div className="flex items-center gap-1">
             <span>ZOOM:</span>
             <span className="text-yellow-400 font-bold">{camera.scale.toFixed(0)} px/m</span>
           </div>
@@ -635,133 +719,144 @@ export default function MapViewer({ mapData, robotPose, laserScan, globalPath, l
           onMouseMove={handleMouseMove}
           onMouseUp={handleMouseUp}
           onWheel={handleWheel}
-          className="w-full h-full block cursor-crosshair"
+          onTouchStart={handleTouchStart}
+          onTouchMove={handleTouchMove}
+          onTouchEnd={handleTouchEnd}
+          onTouchCancel={handleTouchEnd}
+          className="w-full h-full block cursor-crosshair touch-none select-none"
         />
 
-        {/* Primary Interactive Action Toolbar */}
-        <div className="absolute top-3 left-3 flex flex-wrap items-center gap-1.5 p-1 rounded-xl bg-slate-900/95 border border-slate-800 shadow-lg backdrop-blur-xs z-10">
-          <button
-            onClick={() => setToolMode('PAN')}
-            className={`px-3 py-1.5 rounded-lg text-xs font-mono font-bold flex items-center gap-1.5 transition-all cursor-pointer ${
-              toolMode === 'PAN'
-                ? 'bg-yellow-400 text-slate-950 font-extrabold shadow-sm'
-                : 'text-slate-400 hover:text-white hover:bg-slate-800'
-            }`}
-            title="Pan Viewport (Click and Drag map)"
-          >
-            Pan
-          </button>
+        {/* Responsive Floating HUD Top Container */}
+        <div className="absolute top-2 sm:top-3 inset-x-2 sm:inset-x-3 flex flex-wrap items-start justify-between gap-1.5 pointer-events-none z-10">
+          {/* Primary Interactive Action Toolbar */}
+          <div className="flex items-center gap-1 p-1 rounded-xl bg-slate-900/95 border border-slate-800 shadow-lg backdrop-blur-xs pointer-events-auto">
+            <button
+              onClick={() => setToolMode('PAN')}
+              className={`px-2.5 sm:px-3 py-1.5 rounded-lg text-xs font-mono font-bold flex items-center gap-1.5 transition-all cursor-pointer ${
+                toolMode === 'PAN'
+                  ? 'bg-yellow-400 text-slate-950 font-extrabold shadow-sm'
+                  : 'text-slate-400 hover:text-white hover:bg-slate-800'
+              }`}
+              title="Pan Viewport (Click/touch and drag map)"
+            >
+              Pan
+            </button>
 
-          <button
-            onClick={() => setToolMode('NAV_GOAL')}
-            className={`px-3 py-1.5 rounded-lg text-xs font-mono font-bold flex items-center gap-1.5 transition-all cursor-pointer ${
-              toolMode === 'NAV_GOAL'
-                ? 'bg-yellow-400 text-slate-950 font-extrabold shadow-sm'
-                : 'text-slate-400 hover:text-white hover:bg-slate-800'
-            }`}
-            title="Click & Drag on map to set Nav2 Goal + Orientation heading"
-          >
-            <Crosshair className={`w-3.5 h-3.5 ${toolMode === 'NAV_GOAL' ? 'text-slate-950' : 'text-yellow-400'}`} />
-            <span>Set Nav Goal</span>
-          </button>
+            <button
+              onClick={() => setToolMode('NAV_GOAL')}
+              className={`px-2.5 sm:px-3 py-1.5 rounded-lg text-xs font-mono font-bold flex items-center gap-1 sm:gap-1.5 transition-all cursor-pointer ${
+                toolMode === 'NAV_GOAL'
+                  ? 'bg-yellow-400 text-slate-950 font-extrabold shadow-sm'
+                  : 'text-slate-400 hover:text-white hover:bg-slate-800'
+              }`}
+              title="Click & Drag on map to set Nav2 Goal + Orientation heading"
+            >
+              <Crosshair className={`w-3.5 h-3.5 ${toolMode === 'NAV_GOAL' ? 'text-slate-950' : 'text-yellow-400'}`} />
+              <span className="hidden sm:inline">Set Nav Goal</span>
+              <span className="sm:hidden">Goal</span>
+            </button>
 
-          <button
-            onClick={() => setToolMode('MARK_LOC')}
-            className={`px-3 py-1.5 rounded-lg text-xs font-mono font-bold flex items-center gap-1.5 transition-all cursor-pointer ${
-              toolMode === 'MARK_LOC'
-                ? 'bg-yellow-400 text-slate-950 font-extrabold shadow-sm'
-                : 'text-slate-400 hover:text-white hover:bg-slate-800'
-            }`}
-            title="Click map to create a new named warehouse location pin"
-          >
-            <MapPin className={`w-3.5 h-3.5 ${toolMode === 'MARK_LOC' ? 'text-slate-950' : 'text-yellow-400'}`} />
-            <span>Mark Pin</span>
-          </button>
+            <button
+              onClick={() => setToolMode('MARK_LOC')}
+              className={`px-2.5 sm:px-3 py-1.5 rounded-lg text-xs font-mono font-bold flex items-center gap-1 sm:gap-1.5 transition-all cursor-pointer ${
+                toolMode === 'MARK_LOC'
+                  ? 'bg-yellow-400 text-slate-950 font-extrabold shadow-sm'
+                  : 'text-slate-400 hover:text-white hover:bg-slate-800'
+              }`}
+              title="Click map to create a new named warehouse location pin"
+            >
+              <MapPin className={`w-3.5 h-3.5 ${toolMode === 'MARK_LOC' ? 'text-slate-950' : 'text-yellow-400'}`} />
+              <span className="hidden sm:inline">Mark Pin</span>
+              <span className="sm:hidden">Pin</span>
+            </button>
 
-          <div className="h-4 w-[1px] bg-slate-700 mx-1" />
+            <div className="h-4 w-[1px] bg-slate-700 mx-0.5 sm:mx-1 hidden xs:block" />
 
-          {/* Quick Zoom & Center buttons */}
-          <button
-            onClick={() => setCamera(prev => ({ ...prev, scale: Math.min(300, prev.scale * 1.25) }))}
-            className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition-colors cursor-pointer"
-            title="Zoom In"
-          >
-            <ZoomIn className="w-4 h-4" />
-          </button>
-          <button
-            onClick={() => setCamera(prev => ({ ...prev, scale: Math.max(8, prev.scale * 0.8) }))}
-            className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition-colors cursor-pointer"
-            title="Zoom Out"
-          >
-            <ZoomOut className="w-4 h-4" />
-          </button>
-          <button
-            onClick={fitMap}
-            className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition-colors cursor-pointer"
-            title="Fit Map to View"
-          >
-            <Maximize2 className="w-4 h-4" />
-          </button>
-          <button
-            onClick={centerOnRobot}
-            className="p-1.5 rounded-lg text-slate-400 hover:text-yellow-400 hover:bg-slate-800 transition-colors cursor-pointer"
-            title="Center View on Robot"
-          >
-            <Navigation className="w-4 h-4 text-yellow-400" />
-          </button>
-          <button
-            onClick={toggleFullscreen}
-            className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition-colors cursor-pointer"
-            title="Toggle Fullscreen Map"
-          >
-            {isFullscreen ? <Minimize2 className="w-4 h-4" /> : <Maximize2 className="w-4 h-4" />}
-          </button>
-        </div>
+            {/* Quick Zoom & Center buttons */}
+            <div className="flex items-center gap-0.5">
+              <button
+                onClick={() => setCamera(prev => ({ ...prev, scale: Math.min(300, prev.scale * 1.25) }))}
+                className="p-1 sm:p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition-colors cursor-pointer"
+                title="Zoom In"
+              >
+                <ZoomIn className="w-3.5 sm:w-4 h-3.5 sm:h-4" />
+              </button>
+              <button
+                onClick={() => setCamera(prev => ({ ...prev, scale: Math.max(8, prev.scale * 0.8) }))}
+                className="p-1 sm:p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition-colors cursor-pointer"
+                title="Zoom Out"
+              >
+                <ZoomOut className="w-3.5 sm:w-4 h-3.5 sm:h-4" />
+              </button>
+              <button
+                onClick={fitMap}
+                className="p-1 sm:p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition-colors cursor-pointer"
+                title="Fit Map to View"
+              >
+                <Maximize2 className="w-3.5 sm:w-4 h-3.5 sm:h-4" />
+              </button>
+              <button
+                onClick={centerOnRobot}
+                className="p-1 sm:p-1.5 rounded-lg text-slate-400 hover:text-yellow-400 hover:bg-slate-800 transition-colors cursor-pointer"
+                title="Center View on Robot"
+              >
+                <Navigation className="w-3.5 sm:w-4 h-3.5 sm:h-4 text-yellow-400" />
+              </button>
+              <button
+                onClick={toggleFullscreen}
+                className="p-1 sm:p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition-colors cursor-pointer"
+                title="Toggle Fullscreen Map"
+              >
+                {isFullscreen ? <Minimize2 className="w-3.5 sm:w-4 h-3.5 sm:h-4" /> : <Maximize2 className="w-3.5 sm:w-4 h-3.5 sm:h-4" />}
+              </button>
+            </div>
+          </div>
 
-        {/* Layer Controls Bar (Top Right) */}
-        <div className="absolute top-3 right-3 flex items-center gap-1 p-1 rounded-xl bg-slate-900/95 border border-slate-800 shadow-lg text-xs font-mono z-10">
-          <button
-            onClick={() => setShowLaser(!showLaser)}
-            className={`px-2 py-1 rounded text-[11px] transition-all font-semibold flex items-center gap-1 cursor-pointer ${
-              showLaser ? 'bg-red-500 text-white font-bold' : 'text-slate-400 hover:text-white'
-            }`}
-            title="Toggle LiDAR Laser Scan Points"
-          >
-            <span className="w-1.5 h-1.5 rounded-full bg-white inline-block"></span>
-            LiDAR
-          </button>
-          <button
-            onClick={() => setShowTrail(!showTrail)}
-            className={`px-2 py-1 rounded text-[11px] transition-all font-semibold flex items-center gap-1 cursor-pointer ${
-              showTrail ? 'bg-cyan-500 text-slate-950 font-bold' : 'text-slate-400 hover:text-white'
-            }`}
-            title="Toggle Odometry Trail"
-          >
-            <span className="w-1.5 h-1.5 rounded-full bg-slate-950 inline-block"></span>
-            Trail
-          </button>
-          <button
-            onClick={() => setShowGrid(!showGrid)}
-            className={`px-2 py-1 rounded text-[11px] transition-all font-semibold cursor-pointer ${
-              showGrid ? 'bg-yellow-400 text-slate-950 font-bold' : 'text-slate-400 hover:text-white'
-            }`}
-            title="Toggle Meter Grid"
-          >
-            Grid
-          </button>
+          {/* Layer Controls Bar */}
+          <div className="flex items-center gap-1 p-1 rounded-xl bg-slate-900/95 border border-slate-800 shadow-lg text-xs font-mono pointer-events-auto">
+            <button
+              onClick={() => setShowLaser(!showLaser)}
+              className={`px-1.5 sm:px-2 py-0.5 sm:py-1 rounded text-[10px] sm:text-[11px] transition-all font-semibold flex items-center gap-1 cursor-pointer ${
+                showLaser ? 'bg-red-500 text-white font-bold' : 'text-slate-400 hover:text-white'
+              }`}
+              title="Toggle LiDAR Laser Scan Points"
+            >
+              <span className="w-1.5 h-1.5 rounded-full bg-white inline-block"></span>
+              LiDAR
+            </button>
+            <button
+              onClick={() => setShowTrail(!showTrail)}
+              className={`px-1.5 sm:px-2 py-0.5 sm:py-1 rounded text-[10px] sm:text-[11px] transition-all font-semibold flex items-center gap-1 cursor-pointer ${
+                showTrail ? 'bg-cyan-500 text-slate-950 font-bold' : 'text-slate-400 hover:text-white'
+              }`}
+              title="Toggle Odometry Trail"
+            >
+              <span className="w-1.5 h-1.5 rounded-full bg-slate-950 inline-block"></span>
+              Trail
+            </button>
+            <button
+              onClick={() => setShowGrid(!showGrid)}
+              className={`px-1.5 sm:px-2 py-0.5 sm:py-1 rounded text-[10px] sm:text-[11px] transition-all font-semibold cursor-pointer ${
+                showGrid ? 'bg-yellow-400 text-slate-950 font-bold' : 'text-slate-400 hover:text-white'
+              }`}
+              title="Toggle Meter Grid"
+            >
+              Grid
+            </button>
+          </div>
         </div>
 
         {/* Legend Overlay (Bottom Right) */}
-        <div className="absolute bottom-3 right-3 px-3 py-1.5 rounded-xl bg-slate-900/95 border border-slate-800 shadow-lg text-[11px] font-mono flex items-center gap-3.5 z-10 text-slate-300">
+        <div className="absolute bottom-2.5 sm:bottom-3 right-2.5 sm:right-3 px-2 sm:px-3 py-1 sm:py-1.5 rounded-xl bg-slate-900/95 border border-slate-800 shadow-lg text-[10px] sm:text-[11px] font-mono flex items-center gap-2 sm:gap-3.5 z-10 text-slate-300">
           <div className="flex items-center gap-1.5">
             <span className="h-2.5 w-2.5 rounded-xs bg-yellow-400 ring-1 ring-yellow-500"></span>
             <span className="font-bold text-white">BumbleB</span>
           </div>
-          <div className="flex items-center gap-1.5">
+          <div className="hidden xs:flex items-center gap-1.5">
             <span className="h-2 w-2 rounded-full bg-red-500"></span>
             <span>LiDAR</span>
           </div>
-          <div className="flex items-center gap-1.5">
+          <div className="hidden sm:flex items-center gap-1.5">
             <span className="h-1.5 w-3.5 bg-emerald-400 rounded-xs"></span>
             <span>Nav2 Path</span>
           </div>
@@ -773,9 +868,9 @@ export default function MapViewer({ mapData, robotPose, laserScan, globalPath, l
 
         {/* Nav Goal Instruction Notice when active */}
         {toolMode === 'NAV_GOAL' && (
-          <div className="absolute bottom-3 left-3 px-3.5 py-1.5 rounded-xl bg-slate-900/95 border border-yellow-400 text-xs font-mono text-yellow-400 shadow-xl flex items-center gap-2 z-10 animate-bounce">
-            <Crosshair className="w-4 h-4 text-yellow-400" />
-            <span>Click & drag on the map to set Nav2 goal position and heading angle!</span>
+          <div className="absolute bottom-2.5 sm:bottom-3 left-2.5 sm:left-3 max-w-[calc(100vw-130px)] sm:max-w-md px-3 py-1.5 rounded-xl bg-slate-900/95 border border-yellow-400 text-[10px] sm:text-xs font-mono text-yellow-400 shadow-xl flex items-center gap-2 z-10 animate-bounce">
+            <Crosshair className="w-3.5 sm:w-4 h-3.5 sm:h-4 text-yellow-400 shrink-0" />
+            <span className="truncate sm:whitespace-normal">Click or drag on map to set Nav2 goal & heading</span>
           </div>
         )}
       </div>
