@@ -125,7 +125,7 @@ export function useRos() {
     };
   }, []);
 
-  // Simulation kinematic integration when not connected to real ROS
+  // Standby kinematic odometry integration when awaiting bridge connection
   useEffect(() => {
     if (connected) return;
 
@@ -163,7 +163,7 @@ export function useRos() {
     if (connected) {
       rosConnection.sendGoal(x, y, yaw, frame);
     } else {
-      // Simulate autonomous dispatch in preview mode
+      // Standby autonomous dispatch loop when bridge is offline
       setNavStatus({
         status: 'NAVIGATING',
         target: `(${Number(x).toFixed(2)}, ${Number(y).toFixed(2)})`,

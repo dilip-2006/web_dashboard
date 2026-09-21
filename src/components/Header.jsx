@@ -37,8 +37,8 @@ export default function Header({
 
   return (
     <header className="bg-slate-900 border-b border-slate-800 px-3 sm:px-4 py-2 sm:py-2.5 flex flex-wrap items-center justify-between gap-2 sm:gap-3 sticky top-0 z-50 backdrop-blur-md shadow-md text-white">
-      {/* 1. Bumblebee Fleet Brand */}
-      <div className="flex items-center gap-2.5 sm:gap-3">
+      {/* 1. BumbleB Real AMR Fleet Brand */}
+      <div className="flex items-center gap-2 sm:gap-3">
         <div className="relative flex items-center justify-center h-8 w-8 sm:h-9 sm:w-9 rounded-xl bg-yellow-400 text-slate-950 font-mono font-black text-sm sm:text-base shadow-sm border border-yellow-500 shrink-0">
           <span>B</span>
           <span className={`absolute -bottom-0.5 -right-0.5 h-2.5 w-2.5 rounded-full border-2 border-slate-900 ${
@@ -51,22 +51,26 @@ export default function Header({
             <h1 className="text-xs sm:text-sm font-black tracking-tight text-white flex items-center gap-1 font-mono">
               BUMBLE<span className="text-yellow-400">•</span>B
               <span className="text-[9px] sm:text-[10px] font-extrabold px-1 sm:px-1.5 py-0.2 rounded bg-yellow-400/20 text-yellow-300 border border-yellow-400/30 ml-0.5 sm:ml-1">
-                AMR
+                AMR #01
               </span>
             </h1>
 
-            <span className="text-[9px] sm:text-[10px] font-mono font-semibold px-1.5 sm:px-2 py-0.5 rounded-full bg-slate-800 text-slate-300 border border-slate-700 whitespace-nowrap">
-              {connected ? 'PHYSICAL ROS 2' : 'GAZEBO SIM'}
+            <span className={`text-[9px] sm:text-[10px] font-mono font-semibold px-1.5 sm:px-2 py-0.5 rounded-full border whitespace-nowrap ${
+              connected 
+                ? 'bg-emerald-950/80 text-emerald-400 border-emerald-700' 
+                : 'bg-slate-800 text-slate-300 border-slate-700'
+            }`}>
+              {connected ? 'REAL HARDWARE • ROS 2' : 'HARDWARE STANDBY'}
             </span>
           </div>
           <p className="text-[10px] font-mono text-slate-400 hidden md:block">
-            Map: <strong className="text-slate-200">{activeMap}</strong> • Autonomous Fleet Core
+            Map: <strong className="text-slate-200">{activeMap}</strong> • Warehouse Autonomous Mobile Robot
           </p>
         </div>
       </div>
 
-      {/* 2. Professional Template Navigation Pills (horizontally scrollable on mobile) */}
-      <div className="order-3 lg:order-2 w-full lg:w-auto flex items-center p-1 rounded-xl bg-slate-950 border border-slate-800 shadow-inner gap-1 overflow-x-auto no-scrollbar">
+      {/* 2. Professional Template Navigation Pills (desktop/tablet) */}
+      <div className="hidden md:flex order-3 lg:order-2 w-full lg:w-auto items-center p-1 rounded-xl bg-slate-950 border border-slate-800 shadow-inner gap-1 overflow-x-auto no-scrollbar">
         {templates.map(tmpl => {
           const Icon = tmpl.icon;
           const isActive = activeTemplate === tmpl.id;
@@ -108,13 +112,13 @@ export default function Header({
                   <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-400"></span>
                 </span>
                 <Wifi className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
-                <span className="text-[10px] sm:text-[11px] text-emerald-400 hidden xs:inline">ROS ON</span>
+                <span className="text-[10px] sm:text-[11px] text-emerald-400 hidden xs:inline">ONLINE</span>
               </>
             ) : (
               <>
-                <span className="inline-flex rounded-full h-2 w-2 bg-yellow-400"></span>
+                <span className="inline-flex rounded-full h-2 w-2 bg-amber-400"></span>
                 <WifiOff className="w-3.5 h-3.5 text-slate-400 shrink-0" />
-                <span className="text-[10px] sm:text-[11px] text-slate-300 hidden xs:inline">PREVIEW</span>
+                <span className="text-[10px] sm:text-[11px] text-slate-300 hidden xs:inline">STANDBY</span>
               </>
             )}
             <Settings2 className="w-3 h-3 opacity-60 ml-0.5" />
@@ -126,24 +130,24 @@ export default function Header({
               <div className="flex items-center justify-between border-b border-slate-800 pb-2">
                 <span className="font-bold text-white flex items-center gap-1.5">
                   <Wifi className="w-4 h-4 text-yellow-400" />
-                  rosbridge WebSocket
+                  BumbleB rosbridge
                 </span>
                 <span className={`text-[10px] px-2 py-0.5 rounded font-bold ${
-                  connected ? 'bg-emerald-900/80 text-emerald-300 border border-emerald-700' : 'bg-yellow-950/80 text-yellow-300 border border-yellow-700'
+                  connected ? 'bg-emerald-900/80 text-emerald-300 border border-emerald-700' : 'bg-slate-800 text-slate-300 border border-slate-700'
                 }`}>
-                  {connected ? 'CONNECTED' : 'PREVIEW MODE'}
+                  {connected ? 'CONNECTED • LIVE' : 'HARDWARE STANDBY'}
                 </span>
               </div>
 
               <div>
-                <label className="text-[11px] text-slate-400 block mb-1">Target WebSocket URL:</label>
+                <label className="text-[11px] text-slate-400 block mb-1">Target Robot WebSocket Bridge URL:</label>
                 <div className="flex flex-wrap sm:flex-nowrap gap-1.5">
                   <input
                     type="text"
                     value={customWsUrl}
                     onChange={(e) => setCustomWsUrl(e.target.value)}
                     placeholder="ws://localhost:9090"
-                    className="flex-1 min-w-[140px] bg-slate-800 border border-slate-700 rounded-lg px-2.5 py-1 text-white text-xs focus:outline-none focus:border-yellow-400"
+                    className="flex-1 min-w-[140px] bg-slate-800 border border-slate-700 rounded-lg px-2.5 py-1 text-white text-xs focus:outline-none focus:border-yellow-400 font-mono"
                   />
                   <div className="flex gap-1">
                     <button
@@ -171,7 +175,7 @@ export default function Header({
 
               <div className="space-y-1 text-[10px] text-slate-400">
                 <div>Quick Presets:</div>
-                <div className="flex gap-1.5">
+                <div className="flex flex-wrap gap-1.5">
                   <button
                     onClick={() => {
                       setCustomWsUrl('ws://localhost:9090');
@@ -183,12 +187,21 @@ export default function Header({
                   </button>
                   <button
                     onClick={() => {
-                      setCustomWsUrl('ws://127.0.0.1:9090');
-                      handleReconnect('ws://127.0.0.1:9090');
+                      setCustomWsUrl('ws://192.168.1.100:9090');
+                      handleReconnect('ws://192.168.1.100:9090');
                     }}
                     className="px-2 py-0.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded border border-slate-700 cursor-pointer"
                   >
-                    127.0.0.1:9090
+                    192.168.1.100:9090
+                  </button>
+                  <button
+                    onClick={() => {
+                      setCustomWsUrl('ws://bumbleb.local:9090');
+                      handleReconnect('ws://bumbleb.local:9090');
+                    }}
+                    className="px-2 py-0.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded border border-slate-700 cursor-pointer"
+                  >
+                    bumbleb.local:9090
                   </button>
                 </div>
               </div>

@@ -5,6 +5,7 @@ export default function Teleop({ connected, isEmergencyStop, onSendVelocity }) {
   const [maxLin, setMaxLin] = useState(0.25);
   const [maxAng, setMaxAng] = useState(0.60);
   const [activeKeys, setActiveKeys] = useState({});
+  const [driveInputMode, setDriveInputMode] = useState('ALL'); // 'ALL' | 'JOYSTICK' | 'DPAD'
   const intervalRef = useRef(null);
   const buttonIntervalRef = useRef(null);
 
@@ -156,18 +157,43 @@ export default function Teleop({ connected, isEmergencyStop, onSendVelocity }) {
       <div className="panel-header py-2 px-3.5 bg-slate-900 border-b border-slate-800 text-white">
         <span className="flex items-center gap-2 font-bold text-white text-xs">
           <Gauge className="w-4 h-4 text-yellow-400" />
-          MANUAL TELEOPERATION
+          BUMBLE•B TELEOPERATION
         </span>
-        <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-slate-800 border border-slate-700 text-yellow-400 font-bold">
-          DIFF-DRIVE
-        </span>
+        <div className="flex items-center gap-1.5">
+          {/* Mobile Input Toggle */}
+          <div className="flex md:hidden items-center bg-slate-950 rounded-lg p-0.5 border border-slate-800 text-[10px] font-mono">
+            <button
+              onClick={() => setDriveInputMode('ALL')}
+              className={`px-1.5 py-0.5 rounded cursor-pointer ${driveInputMode === 'ALL' ? 'bg-yellow-400 text-slate-950 font-bold' : 'text-slate-400'}`}
+            >
+              Both
+            </button>
+            <button
+              onClick={() => setDriveInputMode('JOYSTICK')}
+              className={`px-1.5 py-0.5 rounded cursor-pointer ${driveInputMode === 'JOYSTICK' ? 'bg-yellow-400 text-slate-950 font-bold' : 'text-slate-400'}`}
+            >
+              Stick
+            </button>
+            <button
+              onClick={() => setDriveInputMode('DPAD')}
+              className={`px-1.5 py-0.5 rounded cursor-pointer ${driveInputMode === 'DPAD' ? 'bg-yellow-400 text-slate-950 font-bold' : 'text-slate-400'}`}
+            >
+              Pad
+            </button>
+          </div>
+          <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-slate-800 border border-slate-700 text-yellow-400 font-bold hidden xs:inline">
+            ZLAC706 10Hz
+          </span>
+        </div>
       </div>
 
       <div className="p-4 flex flex-col gap-4">
         {/* Joystick & D-Pad Container */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-center">
           {/* Virtual Analog Joystick */}
-          <div className="flex flex-col items-center gap-2">
+          <div className={`flex-col items-center gap-2 ${
+            driveInputMode === 'ALL' || driveInputMode === 'JOYSTICK' ? 'flex' : 'hidden md:flex'
+          }`}>
             <div className="text-[10px] font-mono text-slate-500 uppercase tracking-wider font-semibold">
               TOUCH JOYSTICK
             </div>
@@ -209,7 +235,9 @@ export default function Teleop({ connected, isEmergencyStop, onSendVelocity }) {
           </div>
 
           {/* D-Pad Buttons & Keyboard Controls */}
-          <div className="flex flex-col items-center gap-2">
+          <div className={`flex-col items-center gap-2 ${
+            driveInputMode === 'ALL' || driveInputMode === 'DPAD' ? 'flex' : 'hidden md:flex'
+          }`}>
             <div className="text-[10px] font-mono text-slate-500 uppercase tracking-wider flex items-center gap-1.5 font-semibold">
               <Keyboard className="w-3.5 h-3.5 text-slate-500" />
               WASD / ARROW KEYS

@@ -149,15 +149,15 @@ export default function DiagnosticsTemplate({
       }
       ctx.shadowBlur = 0;
     } else {
-      // Mock realistic radar points for preview when not connected to real lidar
-      const mockPoints = [
+      // Standby field laser radar points when awaiting active /scan topic stream
+      const standbyPoints = [
         { r: 1.2, a: -0.8 }, { r: 1.25, a: -0.75 }, { r: 1.3, a: -0.7 },
         { r: 2.1, a: 1.2 }, { r: 2.15, a: 1.25 }, { r: 2.2, a: 1.3 },
         { r: 2.8, a: 2.8 }, { r: 2.85, a: 2.85 }, { r: 2.9, a: 2.9 },
         { r: 1.8, a: -2.1 }, { r: 1.85, a: -2.05 }
       ];
       ctx.fillStyle = '#dc2626';
-      mockPoints.forEach(pt => {
+      standbyPoints.forEach(pt => {
         pointsCount++;
         const ang = pt.a - Math.PI / 2;
         const px = center + (pt.r / radarZoom) * radius * Math.cos(ang);

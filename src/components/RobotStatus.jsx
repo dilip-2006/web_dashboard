@@ -17,10 +17,10 @@ export default function RobotStatus({ robotPose, velocity, battery, navStatus })
       <div className="panel-header py-2 px-3.5 bg-slate-900 border-b border-slate-800 text-white">
         <span className="flex items-center gap-2 font-bold text-white text-xs">
           <Activity className="w-4 h-4 text-yellow-400" />
-          KINEMATICS & TELEMETRY
+          BUMBLE•B KINEMATICS & TELEMETRY
         </span>
         <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-slate-800 border border-slate-700 text-yellow-400 font-bold">
-          DIFF-DRIVE 50Hz
+          ZLAC706 50Hz
         </span>
       </div>
 

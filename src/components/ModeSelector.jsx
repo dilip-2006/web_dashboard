@@ -26,7 +26,7 @@ export default function ModeSelector({ systemState, onCommand, activeMap }) {
       <div className="panel-header py-2 px-3.5 bg-slate-900 border-b border-slate-800 text-white">
         <span className="flex items-center gap-2 font-bold text-white text-xs">
           <Power className="w-4 h-4 text-yellow-400" />
-          SYSTEM AUTONOMY MODES
+          BUMBLE•B AUTONOMY MODES
         </span>
         <div className="flex items-center gap-1.5 font-mono text-[10px]">
           <span className="text-slate-400 font-semibold">STATE:</span>

@@ -16,7 +16,10 @@ import MissionDispatcherTemplate from './components/templates/MissionDispatcherT
 import DiagnosticsTemplate from './components/templates/DiagnosticsTemplate';
 import AnalyticsTemplate from './components/templates/AnalyticsTemplate';
 
-import { Gamepad2, MapPin, Layers, Activity, Sparkles, CheckCircle2, ChevronRight, Cpu } from 'lucide-react';
+import { 
+  Gamepad2, MapPin, Layers, Activity, Sparkles, CheckCircle2, ChevronRight, Cpu,
+  LayoutDashboard, Navigation as NavIcon, Radio, BarChart3, AlertOctagon, ShieldAlert 
+} from 'lucide-react';
 
 export default function App() {
   const {
@@ -125,7 +128,7 @@ export default function App() {
       />
 
       {/* 3. Main Operational Viewport */}
-      <main className="flex-1 p-2 sm:p-3 md:p-4 flex flex-col gap-2.5 sm:gap-3 max-w-[1920px] w-full mx-auto overflow-x-hidden">
+      <main className="flex-1 p-2 sm:p-3 md:p-4 flex flex-col gap-2.5 sm:gap-3 max-w-[1920px] w-full mx-auto overflow-x-hidden pb-20 md:pb-4">
         {/* TEMPLATE 1: OPERATIONS COCKPIT */}
         {activeTemplate === 'COCKPIT' && (
           <div className="flex flex-col gap-3 flex-1">
@@ -295,7 +298,7 @@ export default function App() {
                           </div>
                           <div className="flex items-center gap-2 text-slate-800">
                             <CheckCircle2 className="w-3.5 h-3.5 text-amber-600 shrink-0" />
-                            <span>Launch flag: <code className="text-amber-900 font-bold bg-amber-100/70 px-1 py-0.2 rounded border border-amber-300">simulation:=false</code></span>
+                            <span>Hardware Bringup: <code className="text-amber-900 font-bold bg-amber-100/70 px-1 py-0.2 rounded border border-amber-300">ros2 launch bumbleb_bringup real_robot.launch.py</code></span>
                           </div>
                         </div>
                       </div>
@@ -368,12 +371,69 @@ export default function App() {
           <span className="font-bold text-white">BumbleB Autonomous Mobile Robot Fleet Platform</span>
         </div>
         <div className="hidden md:block">
-          Gazebo Classic simulation • ROS 2 Humble • WebSocket :9090 • Diff-Drive DWB Navigator
+          Real Warehouse AMR Hardware • ROS 2 Humble • WebSocket :9090 • ZLAC706 Diff-Drive • RPLiDAR A1
         </div>
         <div className="text-slate-950 font-extrabold px-2 py-0.5 rounded bg-yellow-400 border border-yellow-500">
           UNIT #01 • READY
         </div>
       </footer>
+
+      {/* Mobile Fixed Bottom Navigation Bar */}
+      <nav className="md:hidden fixed bottom-0 inset-x-0 bg-slate-950/95 backdrop-blur-md border-t border-slate-800 z-50 px-2 py-1.5 flex items-center justify-around shadow-2xl text-xs font-mono">
+        <button
+          onClick={() => setActiveTemplate('COCKPIT')}
+          className={`flex flex-col items-center gap-0.5 py-1 px-2.5 rounded-lg transition-all cursor-pointer ${
+            activeTemplate === 'COCKPIT' ? 'text-yellow-400 font-extrabold bg-slate-900 border border-yellow-500/40 shadow-xs' : 'text-slate-400 hover:text-white'
+          }`}
+        >
+          <LayoutDashboard className="w-4 h-4" />
+          <span className="text-[10px]">Cockpit</span>
+        </button>
+
+        <button
+          onClick={() => setActiveTemplate('DISPATCHER')}
+          className={`flex flex-col items-center gap-0.5 py-1 px-2.5 rounded-lg transition-all cursor-pointer ${
+            activeTemplate === 'DISPATCHER' ? 'text-yellow-400 font-extrabold bg-slate-900 border border-yellow-500/40 shadow-xs' : 'text-slate-400 hover:text-white'
+          }`}
+        >
+          <NavIcon className="w-4 h-4" />
+          <span className="text-[10px]">Dispatch</span>
+        </button>
+
+        <button
+          onClick={() => setActiveTemplate('DIAGNOSTICS')}
+          className={`flex flex-col items-center gap-0.5 py-1 px-2.5 rounded-lg transition-all cursor-pointer ${
+            activeTemplate === 'DIAGNOSTICS' ? 'text-yellow-400 font-extrabold bg-slate-900 border border-yellow-500/40 shadow-xs' : 'text-slate-400 hover:text-white'
+          }`}
+        >
+          <Radio className="w-4 h-4" />
+          <span className="text-[10px]">Radar</span>
+        </button>
+
+        <button
+          onClick={() => setActiveTemplate('ANALYTICS')}
+          className={`flex flex-col items-center gap-0.5 py-1 px-2.5 rounded-lg transition-all cursor-pointer ${
+            activeTemplate === 'ANALYTICS' ? 'text-yellow-400 font-extrabold bg-slate-900 border border-yellow-500/40 shadow-xs' : 'text-slate-400 hover:text-white'
+          }`}
+        >
+          <BarChart3 className="w-4 h-4" />
+          <span className="text-[10px]">Logs</span>
+        </button>
+
+        {/* Mobile Quick E-STOP Button */}
+        <button
+          onClick={systemState?.is_emergency_stop ? handleResetEmergencyStop : handleEmergencyStop}
+          className={`flex flex-col items-center gap-0.5 py-1 px-2 rounded-lg transition-all cursor-pointer ${
+            systemState?.is_emergency_stop
+              ? 'bg-emerald-600 text-white animate-pulse shadow-xs'
+              : 'bg-red-600 text-white hover:bg-red-700 shadow-xs active:scale-95'
+          }`}
+          title="Hardware Emergency Stop"
+        >
+          <AlertOctagon className="w-4 h-4" />
+          <span className="text-[10px] font-extrabold">{systemState?.is_emergency_stop ? 'RESET' : 'E-STOP'}</span>
+        </button>
+      </nav>
     </div>
   );
 }

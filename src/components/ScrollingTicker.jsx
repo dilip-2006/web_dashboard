@@ -29,8 +29,8 @@ export default function ScrollingTicker({
       color: 'text-yellow-400',
       label: 'FLEET',
       value: 'BUMBLE•B #01',
-      badge: connected ? 'ONLINE' : 'SIMULATOR',
-      badgeColor: connected ? 'bg-emerald-950/80 text-emerald-400 border-emerald-800' : 'bg-yellow-950/80 text-yellow-300 border-yellow-800'
+      badge: connected ? 'ONLINE (REAL AMR)' : 'HARDWARE STANDBY',
+      badgeColor: connected ? 'bg-emerald-950/80 text-emerald-400 border-emerald-800' : 'bg-slate-800 text-slate-300 border-slate-700'
     },
     {
       id: 'mode',
