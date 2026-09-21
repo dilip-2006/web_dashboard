@@ -1,7 +1,16 @@
 import React, { useRef, useEffect, useState, useCallback } from 'react';
-import { Maximize2, Minimize2, Crosshair, Navigation, MapPin, ZoomIn, ZoomOut, RotateCcw, Compass, Eye, EyeOff, Layers } from 'lucide-react';
+import { Maximize2, Minimize2, Crosshair, Navigation, MapPin, ZoomIn, ZoomOut, RotateCcw, Compass, Eye, EyeOff, Layers, Sliders } from 'lucide-react';
 
-export default function MapViewer({ mapData, robotPose, laserScan, globalPath, locations, onSendGoal, onSaveLocationAtPose }) {
+export default function MapViewer({
+  mapData,
+  robotPose,
+  laserScan,
+  globalPath,
+  locations,
+  onSendGoal,
+  onSaveLocationAtPose,
+  lidarOffsetX: propLidarOffsetX = 0.20
+}) {
   const canvasRef = useRef(null);
   const offscreenCanvasRef = useRef(null);
   const containerRef = useRef(null);
@@ -15,6 +24,24 @@ export default function MapViewer({ mapData, robotPose, laserScan, globalPath, l
   const [activeGoal, setActiveGoal] = useState(null);
   const [mouseMapPos, setMouseMapPos] = useState({ x: 0, y: 0 });
   const [isFullscreen, setIsFullscreen] = useState(false);
+
+  // Front LiDAR offset forward from differential drive axle center (base_link) in meters
+  const [lidarOffsetX, setLidarOffsetX] = useState(() => {
+    try {
+      const saved = typeof window !== 'undefined' ? localStorage.getItem('amr_lidar_offset_x') : null;
+      if (saved !== null && !isNaN(parseFloat(saved))) {
+        return parseFloat(saved);
+      }
+    } catch (_) {}
+    return propLidarOffsetX ?? 0.20;
+  });
+  const [showOffsetConfig, setShowOffsetConfig] = useState(false);
+
+  useEffect(() => {
+    if (propLidarOffsetX != null && !isNaN(propLidarOffsetX)) {
+      setLidarOffsetX(propLidarOffsetX);
+    }
+  }, [propLidarOffsetX]);
 
   // Layers visibility - Grid disabled by default for clean minimal view
   const [showLaser, setShowLaser] = useState(true);
@@ -222,13 +249,18 @@ export default function MapViewer({ mapData, robotPose, laserScan, globalPath, l
       const angleInc = laserScan.angle_increment || (Math.PI / 180);
       const ranges = laserScan.ranges;
 
+      // Physical LiDAR sensor origin in map frame:
+      // Offset forward from the differential drive wheel axle center (base_link) along the robot's heading
+      const lidarMapX = rx + lidarOffsetX * Math.cos(ryaw);
+      const lidarMapY = ry + lidarOffsetX * Math.sin(ryaw);
+
       ctx.fillStyle = '#ef4444ee';
       for (let i = 0; i < ranges.length; i += 2) {
         const r = ranges[i];
         if (r >= (laserScan.range_min || 0.1) && r <= (laserScan.range_max || 12.0)) {
           const angle = ryaw + minAngle + i * angleInc;
-          const lx = rx + r * Math.cos(angle);
-          const ly = ry + r * Math.sin(angle);
+          const lx = lidarMapX + r * Math.cos(angle);
+          const ly = lidarMapY + r * Math.sin(angle);
           const cp = mapToCanvas(lx, ly, width, height);
           ctx.beginPath();
           ctx.arc(cp.x, cp.y, 2.0, 0, Math.PI * 2);
@@ -425,18 +457,36 @@ export default function MapViewer({ mapData, robotPose, laserScan, globalPath, l
       ctx.fillRect(-lengthPx / 2 + 2, -stripeW - stripeGap, lengthPx - 4, stripeW);
       ctx.fillRect(-lengthPx / 2 + 2, stripeGap, lengthPx - 4, stripeW);
 
-      // Left and Right High-Grip Drive Wheels
+      // Left and Right High-Grip Drive Wheels (Axle at x = 0)
       const wheelL = 0.20 * camera.scale;
       const wheelW = 0.06 * camera.scale;
       ctx.fillStyle = '#18181b';
       ctx.strokeStyle = '#facc15';
       ctx.lineWidth = 1.5;
-      // Left wheel
+      // Left wheel (centered at axle x = 0)
       ctx.fillRect(-wheelL / 2, -widthPx / 2 - wheelW / 2, wheelL, wheelW);
       ctx.strokeRect(-wheelL / 2, -widthPx / 2 - wheelW / 2, wheelL, wheelW);
-      // Right wheel
+      // Right wheel (centered at axle x = 0)
       ctx.fillRect(-wheelL / 2, widthPx / 2 - wheelW / 2, wheelL, wheelW);
       ctx.strokeRect(-wheelL / 2, widthPx / 2 - wheelW / 2, wheelL, wheelW);
+
+      // Wheel Axle Line connecting the two wheels across the chassis at x = 0
+      ctx.strokeStyle = '#27272a';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.moveTo(0, -widthPx / 2);
+      ctx.lineTo(0, widthPx / 2);
+      ctx.stroke();
+
+      // Differential Drive Center Point (base_link origin between the two wheels)
+      ctx.fillStyle = '#090d16';
+      ctx.beginPath();
+      ctx.arc(0, 0, 4, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = '#facc15';
+      ctx.beginPath();
+      ctx.arc(0, 0, 2, 0, Math.PI * 2);
+      ctx.fill();
 
       // Dual Front LED Headlights
       ctx.fillStyle = '#ffffff';
@@ -457,30 +507,69 @@ export default function MapViewer({ mapData, robotPose, laserScan, globalPath, l
       ctx.fill();
       ctx.shadowBlur = 0;
 
-      // Front Directional Arrow
+      // Front Directional Arrow / Chevron at Nose
       ctx.fillStyle = '#18181b';
       ctx.beginPath();
       ctx.moveTo(lengthPx / 2 - 2, 0);
-      ctx.lineTo(lengthPx / 4, -widthPx / 4);
-      ctx.lineTo(lengthPx / 4, widthPx / 4);
+      ctx.lineTo(lengthPx / 2 - 0.05 * camera.scale, -widthPx / 6);
+      ctx.lineTo(lengthPx / 2 - 0.05 * camera.scale, widthPx / 6);
       ctx.closePath();
       ctx.fill();
 
-      // Center LiDAR Scanner Puck (Rotary Head)
+      // Front LiDAR Scanner (Offset forward from center between the two wheels)
+      const lidarOffsetPx = lidarOffsetX * camera.scale;
+
+      // Offset Connector Guide Line from Wheel Axle Center to Front LiDAR
+      if (lidarOffsetPx > 2) {
+        ctx.strokeStyle = 'rgba(239, 68, 68, 0.45)';
+        ctx.lineWidth = 1.5;
+        ctx.setLineDash([2, 2]);
+        ctx.beginPath();
+        ctx.moveTo(0, 0);
+        ctx.lineTo(lidarOffsetPx, 0);
+        ctx.stroke();
+        ctx.setLineDash([]);
+      }
+
+      // Front LiDAR Mount Turret Pedestal Bracket
       ctx.fillStyle = '#0f172a';
-      ctx.strokeStyle = '#facc15';
+      ctx.strokeStyle = '#334155';
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.roundRect(
+        lidarOffsetPx - 0.075 * camera.scale,
+        -0.065 * camera.scale,
+        0.15 * camera.scale,
+        0.13 * camera.scale,
+        4
+      );
+      ctx.fill();
+      ctx.stroke();
+
+      // Rotary LiDAR Scanner Puck (Rotary Head)
+      ctx.fillStyle = '#090d16';
+      ctx.strokeStyle = '#ef4444';
       ctx.lineWidth = 2;
       ctx.beginPath();
-      ctx.arc(0, 0, 0.07 * camera.scale, 0, Math.PI * 2);
+      ctx.arc(lidarOffsetPx, 0, 0.065 * camera.scale, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.stroke();
+
+      // Inner Optical Sensor Core
+      ctx.fillStyle = '#1e293b';
+      ctx.strokeStyle = '#facc15';
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.arc(lidarOffsetPx, 0, 0.04 * camera.scale, 0, Math.PI * 2);
       ctx.fill();
       ctx.stroke();
 
       // Glowing Scanning Diode on LiDAR
       ctx.fillStyle = '#ef4444';
       ctx.shadowColor = '#ef4444';
-      ctx.shadowBlur = 6;
+      ctx.shadowBlur = 8;
       ctx.beginPath();
-      ctx.arc(0.04 * camera.scale, 0, 2.5, 0, Math.PI * 2);
+      ctx.arc(lidarOffsetPx + 0.035 * camera.scale, 0, 2.5, 0, Math.PI * 2);
       ctx.fill();
       ctx.shadowBlur = 0;
 
@@ -489,7 +578,7 @@ export default function MapViewer({ mapData, robotPose, laserScan, globalPath, l
   }, [
     mapData, robotPose, laserScan, globalPath, locations, activeGoal,
     camera, mapToCanvas, canvasToMap, showGrid, showLaser, showTrail,
-    showLocations, trail, goalDragStart, goalDragCurrent
+    showLocations, trail, goalDragStart, goalDragCurrent, lidarOffsetX
   ]);
 
   // Mouse Handlers
@@ -824,6 +913,84 @@ export default function MapViewer({ mapData, robotPose, laserScan, globalPath, l
               <span className="w-1.5 h-1.5 rounded-full bg-white inline-block"></span>
               LiDAR
             </button>
+
+            {/* Front LiDAR Offset Quick Control */}
+            <div className="relative">
+              <button
+                onClick={() => setShowOffsetConfig(prev => !prev)}
+                className={`px-1.5 sm:px-2 py-0.5 sm:py-1 rounded text-[10px] sm:text-[11px] transition-all font-mono font-bold flex items-center gap-1 cursor-pointer border ${
+                  showOffsetConfig
+                    ? 'bg-yellow-400 text-slate-950 border-yellow-500 shadow-xs'
+                    : 'bg-slate-800/80 text-yellow-400 hover:text-yellow-300 border-slate-700 hover:bg-slate-800'
+                }`}
+                title="Adjust Front LiDAR Offset from Drive Wheel Center"
+              >
+                <Sliders className="w-2.5 h-2.5" />
+                <span>+{Math.round(lidarOffsetX * 100)}cm</span>
+              </button>
+
+              {showOffsetConfig && (
+                <div className="absolute top-full mt-2 left-0 sm:right-0 sm:left-auto p-3 rounded-xl bg-slate-950/98 border border-slate-700 shadow-2xl z-30 min-w-[240px] flex flex-col gap-2.5 text-slate-200 backdrop-blur-md">
+                  <div className="flex items-center justify-between text-xs font-bold">
+                    <span className="text-white flex items-center gap-1.5">
+                      <span className="w-2 h-2 rounded-full bg-red-500"></span>
+                      Front LiDAR Offset
+                    </span>
+                    <span className="text-yellow-400 font-mono text-xs">+{Number(lidarOffsetX).toFixed(2)}m</span>
+                  </div>
+
+                  <p className="text-[10px] text-slate-400 leading-tight">
+                    Forward offset from differential drive axle center (base_link) to front LiDAR sensor.
+                  </p>
+
+                  <div className="flex flex-col gap-1">
+                    <input
+                      type="range"
+                      min="0.00"
+                      max="0.28"
+                      step="0.01"
+                      value={lidarOffsetX}
+                      onChange={(e) => {
+                        const val = parseFloat(e.target.value);
+                        setLidarOffsetX(val);
+                        try {
+                          localStorage.setItem('amr_lidar_offset_x', val.toString());
+                        } catch (_) {}
+                      }}
+                      className="w-full accent-yellow-400 cursor-pointer h-1.5 bg-slate-800 rounded-lg"
+                    />
+                    <div className="flex items-center justify-between text-[9px] text-slate-500 font-mono">
+                      <span>0cm (Axle)</span>
+                      <span className="text-yellow-400 font-bold">20cm (Default)</span>
+                      <span>28cm (Bumper)</span>
+                    </div>
+                  </div>
+
+                  {/* Preset quick buttons */}
+                  <div className="flex items-center gap-1 pt-1 border-t border-slate-800">
+                    {[0.15, 0.18, 0.20, 0.22, 0.25].map((preset) => (
+                      <button
+                        key={preset}
+                        onClick={() => {
+                          setLidarOffsetX(preset);
+                          try {
+                            localStorage.setItem('amr_lidar_offset_x', preset.toString());
+                          } catch (_) {}
+                        }}
+                        className={`flex-1 py-1 rounded text-[10px] font-mono cursor-pointer transition-colors ${
+                          Math.abs(lidarOffsetX - preset) < 0.005
+                            ? 'bg-yellow-400 text-slate-950 font-bold'
+                            : 'bg-slate-800 text-slate-300 hover:bg-slate-700'
+                        }`}
+                      >
+                        {Math.round(preset * 100)}cm
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+
             <button
               onClick={() => setShowTrail(!showTrail)}
               className={`px-1.5 sm:px-2 py-0.5 sm:py-1 rounded text-[10px] sm:text-[11px] transition-all font-semibold flex items-center gap-1 cursor-pointer ${
@@ -854,7 +1021,7 @@ export default function MapViewer({ mapData, robotPose, laserScan, globalPath, l
           </div>
           <div className="hidden xs:flex items-center gap-1.5">
             <span className="h-2 w-2 rounded-full bg-red-500"></span>
-            <span>LiDAR</span>
+            <span>LiDAR (+{Math.round(lidarOffsetX * 100)}cm Front)</span>
           </div>
           <div className="hidden sm:flex items-center gap-1.5">
             <span className="h-1.5 w-3.5 bg-emerald-400 rounded-xs"></span>

@@ -169,19 +169,45 @@ export default function DiagnosticsTemplate({
       closestObstacle = 1.2;
     }
 
-    // AMR Footprint Icon at Center
+    // AMR Footprint Icon: LiDAR is at radar origin (center, center), chassis & drive wheels are positioned behind it
+    const chassisTop = center - 4;
+    const axleY = center + 9;
+
+    // Chassis body
     ctx.fillStyle = '#facc15';
     ctx.strokeStyle = '#0f172a';
     ctx.lineWidth = 1.5;
     ctx.beginPath();
-    ctx.roundRect(center - 10, center - 14, 20, 28, 4);
+    ctx.roundRect(center - 10, chassisTop, 20, 26, 4);
     ctx.fill();
     ctx.stroke();
 
-    // Center LiDAR mount
-    ctx.fillStyle = '#dc2626';
+    // Drive wheels (on axle behind front LiDAR)
+    ctx.fillStyle = '#18181b';
+    ctx.fillRect(center - 13, axleY - 4, 3, 8);
+    ctx.fillRect(center + 10, axleY - 4, 3, 8);
+
+    // Axle center mark
+    ctx.strokeStyle = '#3f3f46';
+    ctx.lineWidth = 1;
     ctx.beginPath();
-    ctx.arc(center, center - 4, 3, 0, Math.PI * 2);
+    ctx.moveTo(center - 10, axleY);
+    ctx.lineTo(center + 10, axleY);
+    ctx.stroke();
+
+    // Front LiDAR scanner at radar origin
+    ctx.fillStyle = '#0f172a';
+    ctx.strokeStyle = '#dc2626';
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.arc(center, center, 4, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+
+    // Red laser emitter diode
+    ctx.fillStyle = '#ef4444';
+    ctx.beginPath();
+    ctx.arc(center, center - 1.5, 1.5, 0, Math.PI * 2);
     ctx.fill();
   }, [laserScan, radarZoom, sweepAngle]);
 
@@ -215,9 +241,9 @@ export default function DiagnosticsTemplate({
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3 font-mono">
         <div className="p-3.5 rounded-xl bg-slate-200/60 border border-slate-300 shadow-sm flex items-center justify-between hover:border-slate-400 transition-all">
           <div>
-            <div className="text-[10px] text-slate-500 font-bold uppercase tracking-wider">RPLiDAR A1</div>
+            <div className="text-[10px] text-slate-500 font-bold uppercase tracking-wider">RPLiDAR A1 (Front)</div>
             <div className="text-xl font-black text-slate-900">10.2 <span className="text-xs text-slate-500 font-normal">Hz</span></div>
-            <div className="text-[10px] text-emerald-700 font-bold">● 360° LASER OK</div>
+            <div className="text-[10px] text-emerald-700 font-bold">● 360° LASER • +0.20m OFFSET</div>
           </div>
           <div className="p-2.5 rounded-xl bg-amber-100/80 border border-amber-300 text-amber-800">
             <Radio className="w-5 h-5" />

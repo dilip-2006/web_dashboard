@@ -72,12 +72,34 @@ export function useRos() {
         });
       }
     };
+    const onPose = (msg) => {
+      if (!msg) return;
+      if (msg.x != null && msg.y != null) {
+        setRobotPose(msg);
+      } else if (msg.pose && msg.pose.position) {
+        const q = msg.pose.orientation;
+        let yaw = 0;
+        if (q) {
+          const siny_cosp = 2 * (q.w * q.z + q.x * q.y);
+          const cosy_cosp = 1 - 2 * (q.y * q.y + q.z * q.z);
+          yaw = Math.atan2(siny_cosp, cosy_cosp);
+        }
+        setRobotPose({
+          x: msg.pose.position.x,
+          y: msg.pose.position.y,
+          yaw,
+          yaw_deg: (yaw * 180 / Math.PI) % 360,
+          valid: true
+        });
+      }
+    };
 
     rosConnection.on('connection', onConn);
     rosConnection.on('close', onClose);
     rosConnection.on('state', onState);
     rosConnection.on('health', onHealth);
     rosConnection.on('navStatus', onNav);
+    rosConnection.on('pose', onPose);
     rosConnection.on('locations', onLocs);
     rosConnection.on('maps', onMaps);
     rosConnection.on('battery', onBat);
@@ -92,6 +114,7 @@ export function useRos() {
       rosConnection.off('state', onState);
       rosConnection.off('health', onHealth);
       rosConnection.off('navStatus', onNav);
+      rosConnection.off('pose', onPose);
       rosConnection.off('locations', onLocs);
       rosConnection.off('maps', onMaps);
       rosConnection.off('battery', onBat);
