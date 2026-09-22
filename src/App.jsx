@@ -10,6 +10,7 @@ import MapViewer from './components/MapViewer';
 import LocationManager from './components/LocationManager';
 import MapManager from './components/MapManager';
 import Teleop from './components/Teleop';
+import WarehouseSopModal from './components/WarehouseSopModal';
 
 // Professional Dashboard Templates
 import MissionDispatcherTemplate from './components/templates/MissionDispatcherTemplate';
@@ -22,6 +23,7 @@ import {
 } from 'lucide-react';
 
 export default function App() {
+  const [showSopModal, setShowSopModal] = useState(false);
   const {
     connected,
     systemState,
@@ -35,10 +37,23 @@ export default function App() {
     laserScan,
     globalPath,
     velocity,
+    operationResult,
+    notice,
+    setNotice,
     sendCommand,
     sendLocationCommand,
     sendGoal,
     sendVelocity,
+    setMode,
+    mapOperation,
+    saveMap,
+    serializePoseGraph,
+    resumeMapping,
+    setInitialPose,
+    cancelNavigation,
+    emergencyStop,
+    resetEmergencyStop,
+    systemReset,
     rosUrl,
     connectRos,
     disconnectRos
@@ -51,19 +66,19 @@ export default function App() {
   const [controlTab, setControlTab] = useState('TELEOP');
 
   const handleEmergencyStop = () => {
-    sendCommand({ action: 'emergency_stop' });
+    emergencyStop();
   };
 
   const handleResetEmergencyStop = () => {
-    sendCommand({ action: 'reset_emergency_stop' });
+    resetEmergencyStop();
   };
 
   const handleSaveMap = (name) => {
-    sendCommand({ action: 'save_map', map_name: name });
+    saveMap(name);
   };
 
   const handleLoadMap = (name) => {
-    sendCommand({ action: 'load_map', map_name: name });
+    setMode('LOCALIZATION', name);
   };
 
   const handleSaveLocation = (payload) => {
@@ -110,7 +125,28 @@ export default function App() {
         onResetEmergencyStop={handleResetEmergencyStop}
         activeTemplate={activeTemplate}
         onSelectTemplate={setActiveTemplate}
+        onOpenSop={() => setShowSopModal(true)}
       />
+
+      {/* Dynamic Backend / ROS Bridge Notification Notice */}
+      {notice && (
+        <div className={`px-4 py-2 border-b text-xs font-mono font-bold flex items-center justify-between gap-2 shadow-xs transition-all ${
+          operationResult && !operationResult.success 
+            ? 'bg-red-950/90 text-red-200 border-red-700'
+            : 'bg-slate-900 text-yellow-400 border-slate-800'
+        }`}>
+          <div className="flex items-center gap-2">
+            <span className="h-2 w-2 rounded-full bg-yellow-400 animate-ping"></span>
+            <span>{notice}</span>
+          </div>
+          <button 
+            onClick={() => setNotice('')}
+            className="text-slate-400 hover:text-white px-2 py-0.5 rounded cursor-pointer"
+          >
+            ✕
+          </button>
+        </div>
+      )}
 
       {/* 2. Real-Time Rolling Telemetry Marquee Ticker */}
       <ScrollingTicker
@@ -139,6 +175,7 @@ export default function App() {
                   systemState={systemState}
                   onCommand={sendCommand}
                   activeMap={systemState?.active_map}
+                  onOpenSop={() => setShowSopModal(true)}
                 />
               </div>
               <div className="xl:col-span-7">
@@ -170,6 +207,7 @@ export default function App() {
                   globalPath={globalPath}
                   locations={locations}
                   onSendGoal={(x, y, yaw) => sendGoal(x, y, yaw, 'map')}
+                  onSetInitialPose={(x, y, yaw) => setInitialPose(x, y, yaw)}
                   onSaveLocationAtPose={(x, y, yaw) => {
                     const name = prompt(
                       `Enter Location Name for coordinates (${x.toFixed(2)}, ${y.toFixed(2)}):`,
@@ -270,7 +308,10 @@ export default function App() {
                       maps={maps}
                       activeMap={systemState?.active_map}
                       onSaveMap={handleSaveMap}
+                      onSerializePoseGraph={serializePoseGraph}
+                      onResumeMapping={resumeMapping}
                       onLoadMap={handleLoadMap}
+                      operationResult={operationResult}
                     />
                   )}
 
@@ -321,6 +362,7 @@ export default function App() {
             navStatus={navStatus}
             systemState={systemState}
             onSendGoal={(x, y, yaw) => sendGoal(x, y, yaw, 'map')}
+            onSetInitialPose={(x, y, yaw) => setInitialPose(x, y, yaw)}
             onNavigateToLocation={handleNavigateToLocation}
             onSaveLocationAtPose={(x, y, yaw) => {
               const name = prompt(`Enter waypoint name for (${x.toFixed(2)}, ${y.toFixed(2)}):`, `Shelf ${locations.length + 1}`);
@@ -434,6 +476,12 @@ export default function App() {
           <span className="text-[10px] font-extrabold">{systemState?.is_emergency_stop ? 'RESET' : 'E-STOP'}</span>
         </button>
       </nav>
+
+      {/* Warehouse Standard Operating Procedure (SOP) Modal */}
+      <WarehouseSopModal
+        isOpen={showSopModal}
+        onClose={() => setShowSopModal(false)}
+      />
     </div>
   );
 }

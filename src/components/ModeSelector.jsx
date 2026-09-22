@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
-import { Play, Square, Layers, Map, Navigation, Power, RefreshCw, AlertCircle } from 'lucide-react';
+import { Play, Square, Layers, Map, Navigation, Power, RefreshCw, AlertCircle, BookOpen } from 'lucide-react';
 
-export default function ModeSelector({ systemState, onCommand, activeMap }) {
+export default function ModeSelector({ systemState, onCommand, activeMap, onOpenSop }) {
   const currentMode = systemState?.state || 'READY';
   const isEstop = systemState?.is_emergency_stop || systemState?.state === 'EMERGENCY_STOP';
   const [confirmModal, setConfirmModal] = useState(null);
@@ -23,16 +23,27 @@ export default function ModeSelector({ systemState, onCommand, activeMap }) {
 
   return (
     <div className="panel flex flex-col h-full justify-between">
-      <div className="panel-header py-2 px-3.5 bg-slate-900 border-b border-slate-800 text-white">
-        <span className="flex items-center gap-2 font-bold text-white text-xs">
+      <div className="panel-header py-2 px-3.5 bg-slate-900 border-b border-slate-800 text-white flex items-center justify-between">
+        <div className="flex items-center gap-2">
           <Power className="w-4 h-4 text-yellow-400" />
-          BUMBLE•B AUTONOMY MODES
-        </span>
+          <span className="font-bold text-white text-xs">BUMBLE•B AUTONOMY MODES</span>
+          {onOpenSop && (
+            <button
+              onClick={onOpenSop}
+              className="flex items-center gap-1 text-[10px] font-mono text-yellow-400 hover:text-white bg-slate-800 hover:bg-slate-700 px-2 py-0.5 rounded border border-slate-700 transition-colors ml-1 cursor-pointer"
+              title="View Warehouse Operating Procedure (SOP)"
+            >
+              <BookOpen className="w-3 h-3 text-yellow-400" />
+              <span className="hidden xs:inline">SOP GUIDE</span>
+            </button>
+          )}
+        </div>
         <div className="flex items-center gap-1.5 font-mono text-[10px]">
           <span className="text-slate-400 font-semibold">STATE:</span>
           <span className={`px-2 py-0.5 rounded border font-bold ${
             isEstop ? 'bg-red-950 border-red-600 text-red-300 animate-estop text-white' :
             currentMode === 'NAVIGATION' ? 'bg-yellow-950/80 border-yellow-500/60 text-yellow-300' :
+            currentMode === 'MAPPING' ? 'bg-purple-950/80 border-purple-500/60 text-purple-300' :
             'bg-slate-800 border-slate-700 text-yellow-400'
           }`}>
             {currentMode}
@@ -43,21 +54,31 @@ export default function ModeSelector({ systemState, onCommand, activeMap }) {
       <div className="p-3 flex flex-col gap-2.5 justify-between flex-1">
         {/* Step-by-Step Mode Grid */}
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-          {/* 1. Ready */}
+          {/* 1. Start Robot / Ready */}
           <button
-            onClick={() => handleAction('start_robot', 'Start Robot')}
-            disabled={currentMode !== 'OFF'}
-            className={`btn py-2.5 flex flex-col items-center gap-1 transition-all ${
+            onClick={() => {
+              if (currentMode === 'OFF') {
+                handleAction('start_robot', 'Start Robot');
+              } else if (currentMode !== 'READY') {
+                handleAction('start_robot', 'Stop Active Process & Return to READY', true);
+              } else {
+                handleAction('start_robot', 'Verify Readiness');
+              }
+            }}
+            className={`btn py-2.5 flex flex-col items-center gap-1 transition-all cursor-pointer ${
               currentMode === 'READY'
-                ? 'bg-emerald-50 text-emerald-800 border-emerald-300 shadow-xs ring-1 ring-emerald-300'
-                : 'btn-secondary'
+                ? 'bg-emerald-50 text-emerald-800 border-emerald-400 shadow-xs ring-2 ring-emerald-400/40'
+                : 'btn-secondary hover:border-emerald-400 hover:bg-emerald-50/40'
             }`}
+            title="Start / Verify Robot hardware and set mode to READY"
           >
             <div className="flex items-center gap-1 text-[11px] font-extrabold font-mono text-emerald-700">
-              <Power className="w-3.5 h-3.5" />
-              <span>1. READY</span>
+              <Power className={`w-3.5 h-3.5 ${currentMode === 'READY' ? 'text-emerald-600' : 'text-slate-500'}`} />
+              <span>1. {currentMode === 'OFF' ? 'START ROBOT' : 'READY'}</span>
             </div>
-            <span className="text-[9px] text-slate-500 font-normal">Drivetrain Active</span>
+            <span className="text-[9px] text-slate-500 font-normal">
+              {currentMode === 'READY' ? '● Drivetrain Active' : currentMode === 'OFF' ? 'Click to Boot' : 'Return to Ready'}
+            </span>
           </button>
 
           {/* 2. SLAM Mapping */}

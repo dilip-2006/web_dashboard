@@ -15,6 +15,7 @@ export default function MissionDispatcherTemplate({
   navStatus,
   systemState,
   onSendGoal,
+  onSetInitialPose,
   onNavigateToLocation,
   onSaveLocationAtPose
 }) {
@@ -136,6 +137,7 @@ export default function MissionDispatcherTemplate({
             globalPath={globalPath}
             locations={locations}
             onSendGoal={onSendGoal}
+            onSetInitialPose={onSetInitialPose}
             onSaveLocationAtPose={onSaveLocationAtPose}
           />
         </div>

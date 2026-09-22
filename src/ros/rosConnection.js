@@ -25,15 +25,30 @@ class ROSConnectionManager {
       map: [],
       scan: [],
       plan: [],
-      odom: []
+      odom: [],
+      operationResult: []
     };
 
     this.topics = {};
     this.manualDisconnect = false;
+
+    let queryUrl = null;
+    if (typeof window !== 'undefined' && window.location) {
+      try {
+        const params = new URLSearchParams(window.location.search);
+        if (params.get('ros_url')) {
+          queryUrl = params.get('ros_url');
+        } else if (params.get('ros_host')) {
+          const port = params.get('ros_port') || '9090';
+          queryUrl = `ws://${params.get('ros_host')}:${port}`;
+        }
+      } catch (_) {}
+    }
+
     const savedUrl = typeof window !== 'undefined' ? localStorage.getItem('rosbridge_url') : null;
     const configuredUrl = import.meta.env.VITE_ROSBRIDGE_URL;
     const defaultHost = (typeof window !== 'undefined' && window.location.hostname) ? window.location.hostname : 'localhost';
-    this.url = savedUrl || configuredUrl || `ws://${defaultHost}:9090`;
+    this.url = queryUrl || savedUrl || configuredUrl || `ws://${defaultHost}:9090`;
   }
 
   connect(customUrl = null) {
@@ -276,8 +291,19 @@ class ROSConnectionManager {
       messageType: 'nav_msgs/Odometry',
       throttle_rate: 100
     });
-    this.topics.odom.subscribe((msg) => {
-      this._emit('odom', msg);
+    // 12. Map Operation Result
+    this.topics.operationResult = new ROSLIB.Topic({
+      ros: this.ros,
+      name: '/amr/map_operation_result',
+      messageType: 'std_msgs/String'
+    });
+    this.topics.operationResult.subscribe((msg) => {
+      try {
+        const parsed = JSON.parse(msg.data);
+        this._emit('operationResult', parsed);
+      } catch (e) {
+        console.warn('Failed to parse map_operation_result', e);
+      }
     });
 
     // Publishers
@@ -303,6 +329,12 @@ class ROSConnectionManager {
       ros: this.ros,
       name: '/goal_pose',
       messageType: 'geometry_msgs/PoseStamped'
+    });
+
+    this.topics.initialPose = new ROSLIB.Topic({
+      ros: this.ros,
+      name: '/initialpose',
+      messageType: 'geometry_msgs/PoseWithCovarianceStamped'
     });
   }
 
@@ -396,6 +428,141 @@ class ROSConnectionManager {
         reject(error);
       });
     });
+  }
+
+  // Set Autonomy Mode (via typed bumbleb_bot/srv/SetMode service or topic fallback)
+  async setMode(mode, mapName = '') {
+    try {
+      return await this.callService('/amr/set_mode', 'bumbleb_bot/srv/SetMode', {
+        mode: String(mode).toUpperCase(),
+        map_name: String(mapName || '')
+      });
+    } catch (err) {
+      console.warn('set_mode service call fallback to topic:', err);
+      this.sendCommand({ action: 'set_mode', mode, map_name: mapName });
+      return { success: true, message: `Mode '${mode}' dispatched via topic` };
+    }
+  }
+
+  // Map Operations (save_map, serialize_pose_graph, resume_mapping, deserialize_pose_graph)
+  async mapOperation(operation, mapName = '') {
+    try {
+      return await this.callService('/amr/map_operation', 'bumbleb_bot/srv/MapOperation', {
+        operation: String(operation),
+        map_name: String(mapName || '')
+      });
+    } catch (err) {
+      console.warn('map_operation service call fallback to topic:', err);
+      this.sendCommand({ action: operation, map_name: mapName });
+      return { success: true, message: `Operation '${operation}' dispatched via topic` };
+    }
+  }
+
+  // Navigate to Pose (via typed service and /goal_pose topic)
+  async navigateToPose(x, y, yaw = 0.0) {
+    const numX = Number(x) || 0.0;
+    const numY = Number(y) || 0.0;
+    const numYaw = Number(yaw) || 0.0;
+
+    // Publish to /goal_pose directly for Nav2
+    this.sendGoal(numX, numY, numYaw);
+
+    // Call service for location_manager tracking
+    try {
+      return await this.callService('/amr/navigate_to_pose', 'bumbleb_bot/srv/NavigateToPose', {
+        x: numX,
+        y: numY,
+        yaw: numYaw
+      });
+    } catch (err) {
+      console.warn('navigate_to_pose service call fallback:', err);
+      this.sendCommand({ action: 'navigate_to_pose', x: numX, y: numY, yaw: numYaw });
+      return { success: true, message: `Goal dispatched to (${numX.toFixed(2)}, ${numY.toFixed(2)})` };
+    }
+  }
+
+  // Set AMCL Initial Pose Estimate (via typed service, /initialpose topic, and fallback)
+  async setInitialPose(x, y, yaw = 0.0, frameId = 'map') {
+    const numX = Number(x) || 0.0;
+    const numY = Number(y) || 0.0;
+    const numYaw = Number(yaw) || 0.0;
+
+    if (this.connected && this.topics.initialPose) {
+      const cy = Math.cos(numYaw * 0.5);
+      const sy = Math.sin(numYaw * 0.5);
+      const cov = new Array(36).fill(0);
+      cov[0] = 0.25;
+      cov[7] = 0.25;
+      cov[35] = 0.068;
+
+      const initMsg = new ROSLIB.Message({
+        header: {
+          stamp: { sec: 0, nanosec: 0 },
+          frame_id: frameId
+        },
+        pose: {
+          pose: {
+            position: { x: numX, y: numY, z: 0.0 },
+            orientation: { x: 0.0, y: 0.0, z: sy, w: cy }
+          },
+          covariance: cov
+        }
+      });
+      this.topics.initialPose.publish(initMsg);
+    }
+
+    try {
+      return await this.callService('/amr/set_initial_pose', 'bumbleb_bot/srv/SetInitialPose', {
+        x: numX,
+        y: numY,
+        yaw: numYaw
+      });
+    } catch (err) {
+      console.warn('set_initial_pose service call fallback:', err);
+      this.sendCommand({ action: 'set_initial_pose', x: numX, y: numY, yaw: numYaw });
+      return { success: true, message: `Initial pose set to (${numX.toFixed(2)}, ${numY.toFixed(2)})` };
+    }
+  }
+
+  // Cancel Active Nav2 Goal
+  async cancelNavigation() {
+    try {
+      return await this.callService('/amr/cancel_navigation', 'std_srvs/srv/Trigger', {});
+    } catch (err) {
+      this.sendCommand({ action: 'cancel_navigation' });
+      return { success: true, message: 'Cancel requested via topic' };
+    }
+  }
+
+  // Emergency Stop Safety Protocol
+  async emergencyStop() {
+    this.sendVelocity(0.0, 0.0);
+    try {
+      return await this.callService('/amr/emergency_stop', 'std_srvs/srv/Trigger', {});
+    } catch (err) {
+      this.sendCommand({ action: 'emergency_stop' });
+      return { success: true, message: 'Emergency stop requested via topic' };
+    }
+  }
+
+  // Reset Emergency Stop
+  async resetEmergencyStop() {
+    try {
+      return await this.callService('/amr/reset_emergency_stop', 'std_srvs/srv/Trigger', {});
+    } catch (err) {
+      this.sendCommand({ action: 'reset_emergency_stop' });
+      return { success: true, message: 'Reset emergency stop requested via topic' };
+    }
+  }
+
+  // System Reset
+  async systemReset() {
+    try {
+      return await this.callService('/amr/system_reset', 'std_srvs/srv/Trigger', {});
+    } catch (err) {
+      this.sendCommand({ action: 'system_reset' });
+      return { success: true, message: 'System reset requested via topic' };
+    }
   }
 }
 

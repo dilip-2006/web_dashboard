@@ -42,14 +42,23 @@ export function useRos() {
   const [laserScan, setLaserScan] = useState(null);
   const [globalPath, setGlobalPath] = useState(null);
   const [velocity, setVelocity] = useState({ linear: 0.0, angular: 0.0 });
+  const [operationResult, setOperationResult] = useState(null);
+  const [notice, setNotice] = useState('');
 
   const simVelRef = useRef({ vx: 0.0, wz: 0.0 });
 
   useEffect(() => {
     rosConnection.connect();
 
-    const onConn = () => setConnected(true);
-    const onClose = () => setConnected(false);
+    const onConn = () => {
+      setConnected(true);
+      setNotice('Connected to BumbleB ROS 2 WebSocket Bridge');
+      setTimeout(() => setNotice(''), 4000);
+    };
+    const onClose = () => {
+      setConnected(false);
+      setNotice('ROS Bridge disconnected');
+    };
     const onState = (data) => setSystemState(data);
     const onHealth = (data) => setSystemHealth(data);
     const onNav = (data) => {
@@ -64,6 +73,13 @@ export function useRos() {
     const onMap = (data) => setMapData(data);
     const onScan = (data) => setLaserScan(data);
     const onPlan = (data) => setGlobalPath(data);
+    const onOperation = (data) => {
+      setOperationResult(data);
+      if (data && data.message) {
+        setNotice(data.message);
+        setTimeout(() => setNotice(''), 6000);
+      }
+    };
     const onOdom = (data) => {
       if (data.twist && data.twist.twist) {
         setVelocity({
@@ -107,6 +123,7 @@ export function useRos() {
     rosConnection.on('scan', onScan);
     rosConnection.on('plan', onPlan);
     rosConnection.on('odom', onOdom);
+    rosConnection.on('operationResult', onOperation);
 
     return () => {
       rosConnection.off('connection', onConn);
@@ -122,6 +139,7 @@ export function useRos() {
       rosConnection.off('scan', onScan);
       rosConnection.off('plan', onPlan);
       rosConnection.off('odom', onOdom);
+      rosConnection.off('operationResult', onOperation);
     };
   }, []);
 
@@ -161,7 +179,7 @@ export function useRos() {
 
   const sendGoal = (x, y, yaw = 0.0, frame = 'map') => {
     if (connected) {
-      rosConnection.sendGoal(x, y, yaw, frame);
+      rosConnection.navigateToPose(x, y, yaw);
     } else {
       // Standby autonomous dispatch loop when bridge is offline
       setNavStatus({
@@ -196,15 +214,107 @@ export function useRos() {
     }
   };
 
+  const setInitialPose = (x, y, yaw = 0.0) => {
+    if (connected) {
+      rosConnection.setInitialPose(x, y, yaw);
+    } else {
+      setRobotPose({ x: Number(x) || 0, y: Number(y) || 0, yaw: Number(yaw) || 0, yaw_deg: ((Number(yaw) || 0) * 180 / Math.PI) % 360, valid: true });
+      setNotice(`Initial pose set to (${Number(x).toFixed(2)}, ${Number(y).toFixed(2)})`);
+      setTimeout(() => setNotice(''), 4000);
+    }
+  };
+
+  const setMode = (mode, mapName = '') => {
+    if (connected) {
+      rosConnection.setMode(mode, mapName);
+    } else {
+      setSystemState(prev => ({
+        ...prev,
+        state: mode,
+        active_map: mapName || prev.active_map
+      }));
+    }
+  };
+
+  const mapOperation = (operation, mapName = '') => {
+    if (connected) {
+      rosConnection.mapOperation(operation, mapName);
+    } else {
+      setNotice(`Simulated ${operation} on map '${mapName || 'active'}'`);
+      setTimeout(() => setNotice(''), 4000);
+    }
+  };
+
+  const saveMap = (mapName) => mapOperation('save_map', mapName);
+  const serializePoseGraph = (mapName) => mapOperation('serialize_pose_graph', mapName);
+  const resumeMapping = (mapName) => mapOperation('resume_mapping', mapName);
+
+  const cancelNavigation = () => {
+    if (connected) {
+      rosConnection.cancelNavigation();
+    } else {
+      setNavStatus({ status: 'IDLE', target: '', distance_remaining: 0.0 });
+      setGlobalPath(null);
+    }
+  };
+
+  const emergencyStop = () => {
+    simVelRef.current = { vx: 0, wz: 0 };
+    setVelocity({ linear: 0, angular: 0 });
+    if (connected) {
+      rosConnection.emergencyStop();
+    } else {
+      setSystemState(prev => ({ ...prev, is_emergency_stop: true, state: 'EMERGENCY_STOP' }));
+    }
+  };
+
+  const resetEmergencyStop = () => {
+    if (connected) {
+      rosConnection.resetEmergencyStop();
+    } else {
+      setSystemState(prev => ({ ...prev, is_emergency_stop: false, state: 'READY' }));
+    }
+  };
+
+  const systemReset = () => {
+    if (connected) {
+      rosConnection.systemReset();
+    } else {
+      setSystemState(prev => ({ ...prev, state: 'READY', is_emergency_stop: false }));
+    }
+  };
+
   const sendCommand = (cmd) => {
     if (connected) {
-      rosConnection.sendCommand(cmd);
+      if (cmd.action === 'start_robot') setMode('READY');
+      else if (cmd.action === 'stop_robot') setMode('READY');
+      else if (cmd.action === 'start_mapping') setMode('MAPPING', cmd.map_name);
+      else if (cmd.action === 'stop_mapping') setMode('READY');
+      else if (cmd.action === 'start_localization' || (cmd.action === 'set_mode' && cmd.mode === 'LOCALIZATION') || cmd.action === 'load_map') {
+        setMode('LOCALIZATION', cmd.map_name);
+      }
+      else if (cmd.action === 'stop_localization') setMode('READY');
+      else if (cmd.action === 'start_navigation' || (cmd.action === 'set_mode' && cmd.mode === 'NAVIGATION')) {
+        setMode('NAVIGATION', cmd.map_name);
+      }
+      else if (cmd.action === 'stop_navigation') setMode('READY');
+      else if (cmd.action === 'set_mode') setMode(cmd.mode, cmd.map_name);
+      else if (cmd.action === 'save_map') mapOperation('save_map', cmd.map_name);
+      else if (cmd.action === 'serialize_map' || cmd.action === 'serialize_pose_graph') mapOperation('serialize_pose_graph', cmd.map_name);
+      else if (cmd.action === 'deserialize_map' || cmd.action === 'deserialize_pose_graph' || cmd.action === 'resume_mapping') mapOperation('resume_mapping', cmd.map_name);
+      else if (cmd.action === 'emergency_stop') emergencyStop();
+      else if (cmd.action === 'reset_emergency_stop') resetEmergencyStop();
+      else if (cmd.action === 'system_reset') systemReset();
+      else if (cmd.action === 'cancel_navigation') cancelNavigation();
+      else if (cmd.action === 'set_initial_pose') setInitialPose(cmd.x, cmd.y, cmd.yaw);
+      else if (cmd.action === 'navigate_to_pose') sendGoal(cmd.x, cmd.y, cmd.yaw);
+      else rosConnection.sendCommand(cmd);
     } else {
       if (cmd.action === 'start_mapping') setSystemState(prev => ({ ...prev, state: 'MAPPING' }));
       else if (cmd.action === 'stop_mapping') setSystemState(prev => ({ ...prev, state: 'READY' }));
-      else if (cmd.action === 'start_localization') setSystemState(prev => ({ ...prev, state: 'LOCALIZATION' }));
+      else if (cmd.action === 'start_localization') setSystemState(prev => ({ ...prev, state: 'LOCALIZATION', active_map: cmd.map_name || prev.active_map }));
       else if (cmd.action === 'stop_localization') setSystemState(prev => ({ ...prev, state: 'READY' }));
-      else if (cmd.action === 'start_navigation') setSystemState(prev => ({ ...prev, state: 'NAVIGATION' }));
+      else if (cmd.action === 'start_navigation') setSystemState(prev => ({ ...prev, state: 'NAVIGATION', active_map: cmd.map_name || prev.active_map }));
       else if (cmd.action === 'stop_navigation') setSystemState(prev => ({ ...prev, state: 'READY' }));
       else if (cmd.action === 'emergency_stop') {
         simVelRef.current = { vx: 0, wz: 0 };
@@ -257,10 +367,23 @@ export function useRos() {
     laserScan,
     globalPath,
     velocity,
+    operationResult,
+    notice,
+    setNotice,
     sendCommand,
     sendLocationCommand,
     sendGoal,
     sendVelocity,
+    setMode,
+    mapOperation,
+    saveMap,
+    serializePoseGraph,
+    resumeMapping,
+    setInitialPose,
+    cancelNavigation,
+    emergencyStop,
+    resetEmergencyStop,
+    systemReset,
     rosUrl: rosConnection.url,
     connectRos: (url) => rosConnection.connect(url),
     disconnectRos: () => rosConnection.disconnect()

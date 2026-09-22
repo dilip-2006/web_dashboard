@@ -9,6 +9,7 @@ export default function MapViewer({
   locations,
   onSendGoal,
   onSaveLocationAtPose,
+  onSetInitialPose,
   lidarOffsetX: propLidarOffsetX = 0.20
 }) {
   const canvasRef = useRef(null);
@@ -371,20 +372,21 @@ export default function MapViewer({
       ctx.restore();
     }
 
-    // 8. Interactive Dragging for Nav Goal Orientation
+    // 8. Interactive Dragging for Nav Goal or Initial Pose Orientation
     if (goalDragStart && goalDragCurrent) {
       const startP = mapToCanvas(goalDragStart.x, goalDragStart.y, width, height);
       const currP = mapToCanvas(goalDragCurrent.x, goalDragCurrent.y, width, height);
+      const isInitPose = toolMode === 'INITIAL_POSE';
 
       // Target circle
-      ctx.strokeStyle = '#f59e0b';
+      ctx.strokeStyle = isInitPose ? '#10b981' : '#f59e0b';
       ctx.lineWidth = 2;
       ctx.beginPath();
       ctx.arc(startP.x, startP.y, 12, 0, Math.PI * 2);
       ctx.stroke();
 
       // Heading arrow from start to current drag
-      ctx.strokeStyle = '#38bdf8';
+      ctx.strokeStyle = isInitPose ? '#34d399' : '#38bdf8';
       ctx.lineWidth = 3;
       ctx.beginPath();
       ctx.moveTo(startP.x, startP.y);
@@ -393,7 +395,7 @@ export default function MapViewer({
 
       // Arrow head
       const angle = Math.atan2(currP.y - startP.y, currP.x - startP.x);
-      ctx.fillStyle = '#38bdf8';
+      ctx.fillStyle = isInitPose ? '#34d399' : '#38bdf8';
       ctx.beginPath();
       ctx.moveTo(currP.x, currP.y);
       ctx.lineTo(currP.x - 10 * Math.cos(angle - Math.PI / 6), currP.y - 10 * Math.sin(angle - Math.PI / 6));
@@ -589,8 +591,8 @@ export default function MapViewer({
       const clickY = e.clientY - rect.top;
       const mPos = canvasToMap(clickX, clickY, rect.width, rect.height);
 
-      if (toolMode === 'NAV_GOAL') {
-        // Start dragging to set goal position and heading
+      if (toolMode === 'NAV_GOAL' || toolMode === 'INITIAL_POSE') {
+        // Start dragging to set goal/pose position and heading
         setGoalDragStart({ x: mPos.x, y: mPos.y });
         setGoalDragCurrent({ x: mPos.x, y: mPos.y });
       } else if (toolMode === 'MARK_LOC') {
@@ -634,8 +636,12 @@ export default function MapViewer({
       const dy = mPos.y - goalDragStart.y;
       const yaw = Math.hypot(dx, dy) > 0.15 ? Math.atan2(dy, dx) : 0.0;
 
-      setActiveGoal({ x: goalDragStart.x, y: goalDragStart.y, yaw });
-      onSendGoal?.(goalDragStart.x, goalDragStart.y, yaw);
+      if (toolMode === 'INITIAL_POSE') {
+        onSetInitialPose?.(goalDragStart.x, goalDragStart.y, yaw);
+      } else {
+        setActiveGoal({ x: goalDragStart.x, y: goalDragStart.y, yaw });
+        onSendGoal?.(goalDragStart.x, goalDragStart.y, yaw);
+      }
 
       setGoalDragStart(null);
       setGoalDragCurrent(null);
@@ -656,7 +662,7 @@ export default function MapViewer({
       const mPos = canvasToMap(clickX, clickY, rect.width, rect.height);
       setMouseMapPos(mPos);
 
-      if (toolMode === 'NAV_GOAL') {
+      if (toolMode === 'NAV_GOAL' || toolMode === 'INITIAL_POSE') {
         setGoalDragStart({ x: mPos.x, y: mPos.y });
         setGoalDragCurrent({ x: mPos.x, y: mPos.y });
       } else if (toolMode === 'MARK_LOC') {
@@ -717,8 +723,12 @@ export default function MapViewer({
       const dy = current.y - goalDragStart.y;
       const yaw = Math.hypot(dx, dy) > 0.15 ? Math.atan2(dy, dx) : 0.0;
 
-      setActiveGoal({ x: goalDragStart.x, y: goalDragStart.y, yaw });
-      onSendGoal?.(goalDragStart.x, goalDragStart.y, yaw);
+      if (toolMode === 'INITIAL_POSE') {
+        onSetInitialPose?.(goalDragStart.x, goalDragStart.y, yaw);
+      } else {
+        setActiveGoal({ x: goalDragStart.x, y: goalDragStart.y, yaw });
+        onSendGoal?.(goalDragStart.x, goalDragStart.y, yaw);
+      }
 
       setGoalDragStart(null);
       setGoalDragCurrent(null);
@@ -844,6 +854,30 @@ export default function MapViewer({
               <span className="hidden sm:inline">Set Nav Goal</span>
               <span className="sm:hidden">Goal</span>
             </button>
+
+            <button
+              onClick={() => setToolMode('INITIAL_POSE')}
+              className={`px-2.5 sm:px-3 py-1.5 rounded-lg text-xs font-mono font-bold flex items-center gap-1 sm:gap-1.5 transition-all cursor-pointer ${
+                toolMode === 'INITIAL_POSE'
+                  ? 'bg-emerald-400 text-slate-950 font-extrabold shadow-sm'
+                  : 'text-slate-400 hover:text-white hover:bg-slate-800'
+              }`}
+              title="Click & Drag on map to set AMCL 2D Initial Pose Estimate"
+            >
+              <Navigation className={`w-3.5 h-3.5 ${toolMode === 'INITIAL_POSE' ? 'text-slate-950' : 'text-emerald-400'}`} />
+              <span className="hidden sm:inline">2D Pose Estimate</span>
+              <span className="sm:hidden">Pose</span>
+            </button>
+
+            {onSetInitialPose && (
+              <button
+                onClick={() => onSetInitialPose(0, 0, 0)}
+                className="px-2 py-1.5 rounded-lg text-[10px] font-mono font-bold text-slate-400 hover:text-white hover:bg-slate-800 transition-all cursor-pointer"
+                title="Reset AMCL initial pose to (0, 0, 0)"
+              >
+                (0,0)
+              </button>
+            )}
 
             <button
               onClick={() => setToolMode('MARK_LOC')}
@@ -1038,6 +1072,14 @@ export default function MapViewer({
           <div className="absolute bottom-2.5 sm:bottom-3 left-2.5 sm:left-3 max-w-[calc(100vw-130px)] sm:max-w-md px-3 py-1.5 rounded-xl bg-slate-900/95 border border-yellow-400 text-[10px] sm:text-xs font-mono text-yellow-400 shadow-xl flex items-center gap-2 z-10 animate-bounce">
             <Crosshair className="w-3.5 sm:w-4 h-3.5 sm:h-4 text-yellow-400 shrink-0" />
             <span className="truncate sm:whitespace-normal">Click or drag on map to set Nav2 goal & heading</span>
+          </div>
+        )}
+
+        {/* Initial Pose Instruction Notice when active */}
+        {toolMode === 'INITIAL_POSE' && (
+          <div className="absolute bottom-2.5 sm:bottom-3 left-2.5 sm:left-3 max-w-[calc(100vw-130px)] sm:max-w-md px-3 py-1.5 rounded-xl bg-slate-900/95 border border-emerald-400 text-[10px] sm:text-xs font-mono text-emerald-400 shadow-xl flex items-center gap-2 z-10 animate-bounce">
+            <Navigation className="w-3.5 sm:w-4 h-3.5 sm:h-4 text-emerald-400 shrink-0" />
+            <span className="truncate sm:whitespace-normal">Click or drag on map to set AMCL 2D Pose Estimate</span>
           </div>
         )}
       </div>

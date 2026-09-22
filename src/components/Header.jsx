@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { 
   Wifi, WifiOff, AlertOctagon, ShieldAlert, Cpu, 
-  LayoutDashboard, Navigation, Radio, BarChart3, Settings2, PowerOff
+  LayoutDashboard, Navigation, Radio, BarChart3, Settings2, PowerOff, BookOpen
 } from 'lucide-react';
 
 export default function Header({ 
@@ -13,7 +13,8 @@ export default function Header({
   onEmergencyStop, 
   onResetEmergencyStop,
   activeTemplate,
-  onSelectTemplate
+  onSelectTemplate,
+  onOpenSop
 }) {
   const isEstop = systemState?.is_emergency_stop || systemState?.state === 'EMERGENCY_STOP';
   const state = systemState?.state || 'READY';
@@ -236,6 +237,19 @@ export default function Header({
             <Wifi className="w-3.5 h-3.5 text-slate-950 shrink-0" />
             <span className="hidden sm:inline">CONNECT</span>
             <span className="sm:hidden">CONN</span>
+          </button>
+        )}
+
+        {/* Warehouse SOP Procedure Guide Button */}
+        {onOpenSop && (
+          <button
+            onClick={onOpenSop}
+            className="flex items-center gap-1 sm:gap-1.5 px-2 sm:px-2.5 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 text-yellow-400 font-mono text-xs font-bold transition-all cursor-pointer shadow-xs active:scale-95"
+            title="Warehouse Operating Procedure Guide (SOP)"
+          >
+            <BookOpen className="w-3.5 h-3.5 text-yellow-400 shrink-0" />
+            <span className="hidden md:inline">SOP GUIDE</span>
+            <span className="md:hidden">SOP</span>
           </button>
         )}
 
