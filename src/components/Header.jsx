@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { 
   Wifi, WifiOff, AlertOctagon, ShieldAlert, Cpu, 
-  LayoutDashboard, Navigation, Radio, BarChart3, Settings2, PowerOff, BookOpen
+  LayoutDashboard, Navigation, Radio, Settings2, PowerOff, BookOpen
 } from 'lucide-react';
 
 export default function Header({ 
@@ -33,7 +33,6 @@ export default function Header({
     { id: 'COCKPIT', label: 'Operations Cockpit', icon: LayoutDashboard },
     { id: 'DISPATCHER', label: 'Mission Dispatcher', icon: Navigation },
     { id: 'DIAGNOSTICS', label: 'Sensors & Radar', icon: Radio },
-    { id: 'ANALYTICS', label: 'Fleet Analytics', icon: BarChart3 }
   ];
 
   return (

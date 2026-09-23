@@ -1,7 +1,6 @@
 import React, { useState } from 'react';
 import { useRos } from './hooks/useRos';
 import Header from './components/Header';
-import ScrollingTicker from './components/ScrollingTicker';
 import WaypointScrollBar from './components/WaypointScrollBar';
 import RobotStatus from './components/RobotStatus';
 import SensorStatus from './components/SensorStatus';
@@ -15,11 +14,10 @@ import WarehouseSopModal from './components/WarehouseSopModal';
 // Professional Dashboard Templates
 import MissionDispatcherTemplate from './components/templates/MissionDispatcherTemplate';
 import DiagnosticsTemplate from './components/templates/DiagnosticsTemplate';
-import AnalyticsTemplate from './components/templates/AnalyticsTemplate';
 
 import { 
   Gamepad2, MapPin, Layers, Activity, Sparkles, CheckCircle2, ChevronRight, Cpu,
-  LayoutDashboard, Navigation as NavIcon, Radio, BarChart3, AlertOctagon, ShieldAlert 
+  LayoutDashboard, Navigation as NavIcon, Radio, AlertOctagon, ShieldAlert 
 } from 'lucide-react';
 
 export default function App() {
@@ -62,7 +60,7 @@ export default function App() {
     disconnectRos
   } = useRos();
 
-  // Active Top-Level Template: 'COCKPIT' | 'DISPATCHER' | 'DIAGNOSTICS' | 'ANALYTICS'
+  // Active top-level view: operator cockpit, missions, or diagnostics.
   const [activeTemplate, setActiveTemplate] = useState('COCKPIT');
 
   // Cockpit Drawer Tab: 'TELEOP' | 'LOCATIONS' | 'MAPS' | 'DIAGNOSTICS'
@@ -151,22 +149,7 @@ export default function App() {
         </div>
       )}
 
-      {/* 2. Real-Time Rolling Telemetry Marquee Ticker */}
-      <ScrollingTicker
-        systemState={systemState}
-        robotPose={robotPose}
-        velocity={velocity}
-        battery={battery}
-        navStatus={navStatus}
-        connected={connected}
-        onItemClick={(id) => {
-          if (id === 'sensors' || id === 'canbus') setActiveTemplate('DIAGNOSTICS');
-          else if (id === 'nav') setActiveTemplate('DISPATCHER');
-          else if (id === 'mode') setActiveTemplate('COCKPIT');
-        }}
-      />
-
-      {/* 3. Main Operational Viewport */}
+      {/* Main Operational Viewport */}
       <main className="flex-1 p-2 sm:p-3 md:p-4 flex flex-col gap-2.5 sm:gap-3 max-w-[1920px] w-full mx-auto overflow-x-hidden pb-20 md:pb-4">
         {/* TEMPLATE 1: OPERATIONS COCKPIT */}
         {activeTemplate === 'COCKPIT' && (
@@ -403,16 +386,6 @@ export default function App() {
           />
         )}
 
-        {/* TEMPLATE 4: FLEET ANALYTICS & LOGS */}
-        {activeTemplate === 'ANALYTICS' && (
-          <AnalyticsTemplate
-            systemState={systemState}
-            robotPose={robotPose}
-            velocity={velocity}
-            battery={battery}
-            navStatus={navStatus}
-          />
-        )}
       </main>
 
       {/* Footer */}
@@ -459,16 +432,6 @@ export default function App() {
         >
           <Radio className="w-4 h-4" />
           <span className="text-[10px]">Radar</span>
-        </button>
-
-        <button
-          onClick={() => setActiveTemplate('ANALYTICS')}
-          className={`flex flex-col items-center gap-0.5 py-1 px-2.5 rounded-lg transition-all cursor-pointer ${
-            activeTemplate === 'ANALYTICS' ? 'text-yellow-400 font-extrabold bg-slate-900 border border-yellow-500/40 shadow-xs' : 'text-slate-400 hover:text-white'
-          }`}
-        >
-          <BarChart3 className="w-4 h-4" />
-          <span className="text-[10px]">Logs</span>
         </button>
 
         {/* Mobile Quick E-STOP Button */}
