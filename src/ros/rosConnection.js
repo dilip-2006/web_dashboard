@@ -23,8 +23,11 @@ class ROSConnectionManager {
       maps: [],
       battery: [],
       map: [],
+      globalCostmap: [],
+      localCostmap: [],
       scan: [],
       plan: [],
+      localPlan: [],
       odom: [],
       operationResult: []
     };
@@ -263,6 +266,20 @@ class ROSConnectionManager {
       this._emit('map', msg);
     });
 
+    // Nav2 costmaps. These are separate OccupancyGrids and must be
+    // subscribed to explicitly; they are not included in /map.
+    const subscribeGrid = (key, name, event) => {
+      this.topics[key] = new ROSLIB.Topic({
+        ros: this.ros,
+        name,
+        messageType: 'nav_msgs/OccupancyGrid',
+        compression: 'cbor'
+      });
+      this.topics[key].subscribe((msg) => this._emit(event, msg));
+    };
+    subscribeGrid('globalCostmap', '/global_costmap/costmap', 'globalCostmap');
+    subscribeGrid('localCostmap', '/local_costmap/costmap', 'localCostmap');
+
     // 9. LaserScan
     this.topics.scan = new ROSLIB.Topic({
       ros: this.ros,
@@ -275,14 +292,23 @@ class ROSConnectionManager {
     });
 
     // 10. Nav2 Global Path
-    this.topics.plan = new ROSLIB.Topic({
-      ros: this.ros,
-      name: '/plan',
-      messageType: 'nav_msgs/Path'
-    });
-    this.topics.plan.subscribe((msg) => {
-      this._emit('plan', msg);
-    });
+    const subscribePath = (key, name, event) => {
+      this.topics[key] = new ROSLIB.Topic({
+        ros: this.ros,
+        name,
+        messageType: 'nav_msgs/Path'
+      });
+      this.topics[key].subscribe((msg) => this._emit(event, msg));
+    };
+    // Humble normally exposes /plan and /local_plan. The namespaced forms
+    // are used by some Nav2 parameter/namespace configurations.
+    subscribePath('plan', '/plan', 'plan');
+    subscribePath('plannerPlan', '/planner_server/plan', 'plan');
+
+    // DWB's commanded trajectory/local plan is useful feedback while the
+    // global planner path is being followed.
+    subscribePath('localPlan', '/local_plan', 'localPlan');
+    subscribePath('controllerLocalPlan', '/controller_server/local_plan', 'localPlan');
 
     // 11. Odometry (for current linear/angular speed)
     this.topics.odom = new ROSLIB.Topic({
@@ -291,6 +317,7 @@ class ROSConnectionManager {
       messageType: 'nav_msgs/Odometry',
       throttle_rate: 100
     });
+    this.topics.odom.subscribe((msg) => this._emit('odom', msg));
     // 12. Map Operation Result
     this.topics.operationResult = new ROSLIB.Topic({
       ros: this.ros,

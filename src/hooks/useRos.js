@@ -39,8 +39,11 @@ export function useRos() {
   const [maps, setMaps] = useState(INITIAL_MAPS);
   const [battery, setBattery] = useState({ percentage: 0.95, voltage: 25.4 });
   const [mapData, setMapData] = useState(null);
+  const [globalCostmap, setGlobalCostmap] = useState(null);
+  const [localCostmap, setLocalCostmap] = useState(null);
   const [laserScan, setLaserScan] = useState(null);
   const [globalPath, setGlobalPath] = useState(null);
+  const [localPath, setLocalPath] = useState(null);
   const [velocity, setVelocity] = useState({ linear: 0.0, angular: 0.0 });
   const [operationResult, setOperationResult] = useState(null);
   const [notice, setNotice] = useState('');
@@ -71,8 +74,11 @@ export function useRos() {
     const onMaps = (data) => setMaps(Array.isArray(data) && data.length > 0 ? data : INITIAL_MAPS);
     const onBat = (data) => setBattery({ percentage: data.percentage, voltage: data.voltage });
     const onMap = (data) => setMapData(data);
+    const onGlobalCostmap = (data) => setGlobalCostmap(data);
+    const onLocalCostmap = (data) => setLocalCostmap(data);
     const onScan = (data) => setLaserScan(data);
     const onPlan = (data) => setGlobalPath(data);
+    const onLocalPlan = (data) => setLocalPath(data);
     const onOperation = (data) => {
       setOperationResult(data);
       if (data && data.message) {
@@ -120,8 +126,11 @@ export function useRos() {
     rosConnection.on('maps', onMaps);
     rosConnection.on('battery', onBat);
     rosConnection.on('map', onMap);
+    rosConnection.on('globalCostmap', onGlobalCostmap);
+    rosConnection.on('localCostmap', onLocalCostmap);
     rosConnection.on('scan', onScan);
     rosConnection.on('plan', onPlan);
+    rosConnection.on('localPlan', onLocalPlan);
     rosConnection.on('odom', onOdom);
     rosConnection.on('operationResult', onOperation);
 
@@ -136,8 +145,11 @@ export function useRos() {
       rosConnection.off('maps', onMaps);
       rosConnection.off('battery', onBat);
       rosConnection.off('map', onMap);
+      rosConnection.off('globalCostmap', onGlobalCostmap);
+      rosConnection.off('localCostmap', onLocalCostmap);
       rosConnection.off('scan', onScan);
       rosConnection.off('plan', onPlan);
+      rosConnection.off('localPlan', onLocalPlan);
       rosConnection.off('odom', onOdom);
       rosConnection.off('operationResult', onOperation);
     };
@@ -364,8 +376,11 @@ export function useRos() {
     maps,
     battery,
     mapData,
+    globalCostmap,
+    localCostmap,
     laserScan,
     globalPath,
+    localPath,
     velocity,
     operationResult,
     notice,
@@ -389,4 +404,3 @@ export function useRos() {
     disconnectRos: () => rosConnection.disconnect()
   };
 }
-

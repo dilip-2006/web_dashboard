@@ -12,6 +12,9 @@ export default function MissionDispatcherTemplate({
   mapData,
   laserScan,
   globalPath,
+  localPath,
+  globalCostmap,
+  localCostmap,
   navStatus,
   systemState,
   onSendGoal,
@@ -135,6 +138,9 @@ export default function MissionDispatcherTemplate({
             robotPose={robotPose}
             laserScan={laserScan}
             globalPath={globalPath}
+            localPath={localPath}
+            globalCostmap={globalCostmap}
+            localCostmap={localCostmap}
             locations={locations}
             onSendGoal={onSendGoal}
             onSetInitialPose={onSetInitialPose}

@@ -34,8 +34,11 @@ export default function App() {
     maps,
     battery,
     mapData,
+    globalCostmap,
+    localCostmap,
     laserScan,
     globalPath,
+    localPath,
     velocity,
     operationResult,
     notice,
@@ -205,6 +208,9 @@ export default function App() {
                   robotPose={robotPose}
                   laserScan={laserScan}
                   globalPath={globalPath}
+                  localPath={localPath}
+                  globalCostmap={globalCostmap}
+                  localCostmap={localCostmap}
                   locations={locations}
                   onSendGoal={(x, y, yaw) => sendGoal(x, y, yaw, 'map')}
                   onSetInitialPose={(x, y, yaw) => setInitialPose(x, y, yaw)}
@@ -359,6 +365,9 @@ export default function App() {
             mapData={mapData}
             laserScan={laserScan}
             globalPath={globalPath}
+            localPath={localPath}
+            globalCostmap={globalCostmap}
+            localCostmap={localCostmap}
             navStatus={navStatus}
             systemState={systemState}
             onSendGoal={(x, y, yaw) => sendGoal(x, y, yaw, 'map')}

@@ -6,6 +6,9 @@ export default function MapViewer({
   robotPose,
   laserScan,
   globalPath,
+  localPath,
+  globalCostmap,
+  localCostmap,
   locations,
   onSendGoal,
   onSaveLocationAtPose,
@@ -49,6 +52,7 @@ export default function MapViewer({
   const [showTrail, setShowTrail] = useState(true);
   const [showGrid, setShowGrid] = useState(false);
   const [showLocations, setShowLocations] = useState(true);
+  const [showGlobalCostmap, setShowGlobalCostmap] = useState(true);
 
   // Robot trajectory trail (history)
   const [trail, setTrail] = useState([]);
@@ -226,6 +230,26 @@ export default function MapViewer({
       ctx.strokeRect(pTopLeft.x, pTopLeft.y, renderW, renderH);
     }
 
+    // Draw Nav2's global costmap above the static map. It is already in the
+    // map frame, so the OccupancyGrid origin/resolution provide an exact
+    // overlay. Unknown cells stay transparent to keep the base map visible.
+    if (showGlobalCostmap && globalCostmap?.info && Array.isArray(globalCostmap.data)) {
+      const { width: cw, height: ch, resolution: cr, origin: co } = globalCostmap.info;
+      const cox = co?.position?.x || 0;
+      const coy = co?.position?.y || 0;
+      for (let row = 0; row < ch; row += 1) {
+        for (let col = 0; col < cw; col += 1) {
+          const value = globalCostmap.data[(ch - 1 - row) * cw + col];
+          if (value == null || value < 1) continue;
+          const p1 = mapToCanvas(cox + col * cr, coy + (row + 1) * cr, width, height);
+          const p2 = mapToCanvas(cox + (col + 1) * cr, coy + row * cr, width, height);
+          const alpha = Math.min(0.62, 0.08 + (Math.max(0, value) / 100) * 0.54);
+          ctx.fillStyle = value >= 99 ? `rgba(239,68,68,${alpha})` : `rgba(245,158,11,${alpha})`;
+          ctx.fillRect(p1.x, p1.y, p2.x - p1.x, p2.y - p1.y);
+        }
+      }
+    }
+
     // 3. Draw Robot Trajectory Trail
     if (showTrail && trail.length > 1) {
       ctx.strokeStyle = '#06b6d488';
@@ -280,6 +304,22 @@ export default function MapViewer({
       ctx.lineJoin = 'round';
       ctx.beginPath();
       globalPath.poses.forEach((poseStamped, idx) => {
+        const p = mapToCanvas(poseStamped.pose.position.x, poseStamped.pose.position.y, width, height);
+        if (idx === 0) ctx.moveTo(p.x, p.y);
+        else ctx.lineTo(p.x, p.y);
+      });
+      ctx.stroke();
+      ctx.restore();
+    }
+
+    // DWB local trajectory/path, when published by the controller server.
+    if (localPath?.poses?.length > 1) {
+      ctx.save();
+      ctx.strokeStyle = '#38bdf8';
+      ctx.lineWidth = 2;
+      ctx.setLineDash([6, 4]);
+      ctx.beginPath();
+      localPath.poses.forEach((poseStamped, idx) => {
         const p = mapToCanvas(poseStamped.pose.position.x, poseStamped.pose.position.y, width, height);
         if (idx === 0) ctx.moveTo(p.x, p.y);
         else ctx.lineTo(p.x, p.y);
@@ -578,9 +618,9 @@ export default function MapViewer({
       ctx.restore();
     }
   }, [
-    mapData, robotPose, laserScan, globalPath, locations, activeGoal,
+    mapData, robotPose, laserScan, globalPath, localPath, globalCostmap, locations, activeGoal,
     camera, mapToCanvas, canvasToMap, showGrid, showLaser, showTrail,
-    showLocations, trail, goalDragStart, goalDragCurrent, lidarOffsetX
+    showLocations, showGlobalCostmap, trail, goalDragStart, goalDragCurrent, lidarOffsetX
   ]);
 
   // Mouse Handlers
@@ -1034,6 +1074,15 @@ export default function MapViewer({
             >
               <span className="w-1.5 h-1.5 rounded-full bg-slate-950 inline-block"></span>
               Trail
+            </button>
+            <button
+              onClick={() => setShowGlobalCostmap(!showGlobalCostmap)}
+              className={`px-1.5 sm:px-2 py-0.5 sm:py-1 rounded text-[10px] sm:text-[11px] transition-all font-semibold cursor-pointer ${
+                showGlobalCostmap ? 'bg-orange-500 text-slate-950 font-bold' : 'text-slate-400 hover:text-white'
+              }`}
+              title="Toggle Nav2 global costmap"
+            >
+              Costmap
             </button>
             <button
               onClick={() => setShowGrid(!showGrid)}

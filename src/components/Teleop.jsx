@@ -15,23 +15,76 @@ export default function Teleop({ connected, isEmergencyStop, onSendVelocity }) {
   const [joystickPos, setJoystickPos] = useState({ x: 0, y: 0 });
   const joystickPosRef = useRef({ x: 0, y: 0 });
 
+  const [activeButtonDir, setActiveButtonDir] = useState(null);
+  const buttonPressStartRef = useRef(0);
+  const buttonPulseTimeoutRef = useRef(null);
+
   const stopRobot = useCallback(() => {
     if (buttonIntervalRef.current) {
       clearInterval(buttonIntervalRef.current);
       buttonIntervalRef.current = null;
     }
+    if (buttonPulseTimeoutRef.current) {
+      clearTimeout(buttonPulseTimeoutRef.current);
+      buttonPulseTimeoutRef.current = null;
+    }
+    setActiveButtonDir(null);
     setJoystickPos({ x: 0, y: 0 });
     joystickPosRef.current = { x: 0, y: 0 };
     onSendVelocity?.(0.0, 0.0);
   }, [onSendVelocity]);
 
-  const startButtonDrive = useCallback((linear, angular) => {
-    if (buttonIntervalRef.current) clearInterval(buttonIntervalRef.current);
+  const handleButtonRelease = useCallback(() => {
+    if (buttonIntervalRef.current) {
+      clearInterval(buttonIntervalRef.current);
+      buttonIntervalRef.current = null;
+    }
+
+    const elapsed = Date.now() - (buttonPressStartRef.current || 0);
+    const minPulseMs = 350; // Minimum pulse to guarantee motor actuation
+
+    if (elapsed < minPulseMs) {
+      const remaining = minPulseMs - elapsed;
+      if (buttonPulseTimeoutRef.current) clearTimeout(buttonPulseTimeoutRef.current);
+      buttonPulseTimeoutRef.current = setTimeout(() => {
+        setActiveButtonDir(null);
+        onSendVelocity?.(0.0, 0.0);
+        buttonPulseTimeoutRef.current = null;
+      }, remaining);
+    } else {
+      setActiveButtonDir(null);
+      onSendVelocity?.(0.0, 0.0);
+    }
+  }, [onSendVelocity]);
+
+  const startButtonDrive = useCallback((linear, angular, dir, e) => {
+    if (isEmergencyStop) return;
+    if (e) {
+      if (e.cancelable) e.preventDefault();
+      try {
+        e.currentTarget.setPointerCapture(e.pointerId);
+      } catch (_) {}
+    }
+
+    if (buttonPulseTimeoutRef.current) {
+      clearTimeout(buttonPulseTimeoutRef.current);
+      buttonPulseTimeoutRef.current = null;
+    }
+    if (buttonIntervalRef.current) {
+      clearInterval(buttonIntervalRef.current);
+    }
+
+    buttonPressStartRef.current = Date.now();
+    setActiveButtonDir(dir);
+
+    // Send immediate first command
     onSendVelocity?.(linear, angular);
+
+    // Continuous 10Hz stream while holding
     buttonIntervalRef.current = setInterval(() => {
       onSendVelocity?.(linear, angular);
     }, 100);
-  }, [onSendVelocity]);
+  }, [isEmergencyStop, onSendVelocity]);
 
   // Keyboard navigation listener (W/A/S/D and Arrow Keys)
   useEffect(() => {
@@ -104,6 +157,7 @@ export default function Teleop({ connected, isEmergencyStop, onSendVelocity }) {
 
   useEffect(() => () => {
     if (buttonIntervalRef.current) clearInterval(buttonIntervalRef.current);
+    if (buttonPulseTimeoutRef.current) clearTimeout(buttonPulseTimeoutRef.current);
   }, []);
 
   // Virtual Joystick pointer events
@@ -246,14 +300,13 @@ export default function Teleop({ connected, isEmergencyStop, onSendVelocity }) {
             <div className="flex flex-col items-center gap-1.5 select-none">
               {/* Up */}
               <button
-                onPointerDown={(e) => { e.preventDefault(); startButtonDrive(maxLin, 0.0); }}
-                onPointerUp={stopRobot}
-                onPointerCancel={stopRobot}
-                onPointerLeave={stopRobot}
+                onPointerDown={(e) => startButtonDrive(maxLin, 0.0, 'forward', e)}
+                onPointerUp={handleButtonRelease}
+                onPointerCancel={handleButtonRelease}
                 disabled={isEmergencyStop}
-                className={`h-11 w-13 rounded-lg flex items-center justify-center border font-mono font-bold transition-all active:scale-95 cursor-pointer touch-none select-none ${
-                  activeKeys['w'] || activeKeys['arrowup']
-                    ? 'bg-yellow-400 text-slate-950 border-yellow-500 shadow-sm'
+                className={`h-11 w-13 rounded-lg flex items-center justify-center border font-mono font-bold transition-colors cursor-pointer touch-none select-none ${
+                  activeKeys['w'] || activeKeys['arrowup'] || activeButtonDir === 'forward'
+                    ? 'bg-yellow-400 text-slate-950 border-yellow-500 shadow-sm ring-2 ring-yellow-400/50'
                     : 'bg-slate-900 text-white border-slate-800 hover:bg-slate-800 hover:text-yellow-400'
                 }`}
                 title="Forward (W / Up Arrow)"
@@ -264,15 +317,14 @@ export default function Teleop({ connected, isEmergencyStop, onSendVelocity }) {
               {/* Left, Brake, Right */}
               <div className="flex items-center gap-1.5">
                 <button
-                  onPointerDown={(e) => { e.preventDefault(); startButtonDrive(0.0, maxAng); }}
-                  onPointerUp={stopRobot}
-                  onPointerCancel={stopRobot}
-                  onPointerLeave={stopRobot}
+                  onPointerDown={(e) => startButtonDrive(0.0, maxAng, 'left', e)}
+                  onPointerUp={handleButtonRelease}
+                  onPointerCancel={handleButtonRelease}
                   disabled={isEmergencyStop}
-                  className={`h-11 w-13 rounded-lg flex items-center justify-center border font-mono font-bold transition-all active:scale-95 cursor-pointer touch-none select-none ${
-                    activeKeys['a'] || activeKeys['arrowleft']
-                      ? 'bg-yellow-400 text-slate-950 border-yellow-500 shadow-sm'
-                      : 'bg-slate-900 text-white border-slate-800 hover:bg-slate-800 hover:text-yellow-400'
+                  className={`h-11 w-13 rounded-lg flex items-center justify-center border font-mono font-bold transition-colors cursor-pointer touch-none select-none ${
+                    activeKeys['a'] || activeKeys['arrowleft'] || activeButtonDir === 'left'
+                      ? 'bg-yellow-400 text-slate-950 border-yellow-500 shadow-sm ring-2 ring-yellow-400/50'
+                    : 'bg-slate-900 text-white border-slate-800 hover:bg-slate-800 hover:text-yellow-400'
                   }`}
                   title="Turn Left (A / Left Arrow)"
                 >
@@ -281,7 +333,7 @@ export default function Teleop({ connected, isEmergencyStop, onSendVelocity }) {
 
                 <button
                   onClick={stopRobot}
-                  className="h-11 w-15 rounded-lg flex items-center justify-center bg-red-600 hover:bg-red-700 text-white font-mono font-bold transition-all shadow-xs active:scale-95 text-[11px] touch-none select-none cursor-pointer"
+                  className="h-11 w-15 rounded-lg flex items-center justify-center bg-red-600 hover:bg-red-700 text-white font-mono font-bold transition-colors shadow-xs active:bg-red-800 text-[11px] touch-none select-none cursor-pointer"
                   title="Brake / Stop (Spacebar)"
                 >
                   <Square className="w-3.5 h-3.5 fill-white mr-1" />
@@ -289,14 +341,13 @@ export default function Teleop({ connected, isEmergencyStop, onSendVelocity }) {
                 </button>
 
                 <button
-                  onPointerDown={(e) => { e.preventDefault(); startButtonDrive(0.0, -maxAng); }}
-                  onPointerUp={stopRobot}
-                  onPointerCancel={stopRobot}
-                  onPointerLeave={stopRobot}
+                  onPointerDown={(e) => startButtonDrive(0.0, -maxAng, 'right', e)}
+                  onPointerUp={handleButtonRelease}
+                  onPointerCancel={handleButtonRelease}
                   disabled={isEmergencyStop}
-                  className={`h-11 w-13 rounded-lg flex items-center justify-center border font-mono font-bold transition-all active:scale-95 cursor-pointer touch-none select-none ${
-                    activeKeys['d'] || activeKeys['arrowright']
-                      ? 'bg-yellow-400 text-slate-950 border-yellow-500 shadow-sm'
+                  className={`h-11 w-13 rounded-lg flex items-center justify-center border font-mono font-bold transition-colors cursor-pointer touch-none select-none ${
+                    activeKeys['d'] || activeKeys['arrowright'] || activeButtonDir === 'right'
+                      ? 'bg-yellow-400 text-slate-950 border-yellow-500 shadow-sm ring-2 ring-yellow-400/50'
                       : 'bg-slate-900 text-white border-slate-800 hover:bg-slate-800 hover:text-yellow-400'
                   }`}
                   title="Turn Right (D / Right Arrow)"
@@ -307,14 +358,13 @@ export default function Teleop({ connected, isEmergencyStop, onSendVelocity }) {
 
               {/* Down */}
               <button
-                onPointerDown={(e) => { e.preventDefault(); startButtonDrive(-maxLin, 0.0); }}
-                onPointerUp={stopRobot}
-                onPointerCancel={stopRobot}
-                onPointerLeave={stopRobot}
+                onPointerDown={(e) => startButtonDrive(-maxLin, 0.0, 'backward', e)}
+                onPointerUp={handleButtonRelease}
+                onPointerCancel={handleButtonRelease}
                 disabled={isEmergencyStop}
-                className={`h-11 w-13 rounded-lg flex items-center justify-center border font-mono font-bold transition-all active:scale-95 cursor-pointer touch-none select-none ${
-                  activeKeys['s'] || activeKeys['arrowdown']
-                    ? 'bg-yellow-400 text-slate-950 border-yellow-500 shadow-sm'
+                className={`h-11 w-13 rounded-lg flex items-center justify-center border font-mono font-bold transition-colors cursor-pointer touch-none select-none ${
+                  activeKeys['s'] || activeKeys['arrowdown'] || activeButtonDir === 'backward'
+                    ? 'bg-yellow-400 text-slate-950 border-yellow-500 shadow-sm ring-2 ring-yellow-400/50'
                     : 'bg-slate-900 text-white border-slate-800 hover:bg-slate-800 hover:text-yellow-400'
                 }`}
                 title="Reverse (S / Down Arrow)"
