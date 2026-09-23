@@ -157,6 +157,24 @@ export default function ModeSelector({ systemState, onCommand, activeMap, onOpen
           )}
         </div>
 
+        {/* Dynamic Contextual Guidance for Operator */}
+        {currentMode === 'NAVIGATION' && (
+          <div className="bg-amber-50 border border-amber-300 rounded-lg px-2.5 py-1.5 flex items-center justify-between text-[11px] font-mono text-amber-900 shadow-2xs animate-fadeIn">
+            <span className="flex items-center gap-1.5">
+              <span className="h-2 w-2 rounded-full bg-amber-500 animate-pulse"></span>
+              <span><strong>Nav2 Ready:</strong> Click on the map or select a Waypoint to dispatch robot movement.</span>
+            </span>
+          </div>
+        )}
+        {currentMode === 'LOCALIZATION' && (
+          <div className="bg-teal-50 border border-teal-300 rounded-lg px-2.5 py-1.5 flex items-center justify-between text-[11px] font-mono text-teal-900 shadow-2xs animate-fadeIn">
+            <span className="flex items-center gap-1.5">
+              <span className="h-2 w-2 rounded-full bg-teal-500 animate-pulse"></span>
+              <span><strong>AMCL Localized:</strong> Verify pose on map, then click <strong>4. NAV2</strong> to begin autonomous navigation.</span>
+            </span>
+          </div>
+        )}
+
         {/* Subsystem Controls Bar */}
         <div className="pt-2 border-t border-slate-200 flex flex-wrap items-center justify-between gap-2 text-xs font-mono">
           <div className="flex items-center gap-2">

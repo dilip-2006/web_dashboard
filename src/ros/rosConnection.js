@@ -458,27 +458,30 @@ class ROSConnectionManager {
     }
   }
 
-  // Navigate to Pose (via typed service and /goal_pose topic)
+  // Navigate to Pose (via typed service with topic fallback)
   async navigateToPose(x, y, yaw = 0.0) {
     const numX = Number(x) || 0.0;
     const numY = Number(y) || 0.0;
     const numYaw = Number(yaw) || 0.0;
 
-    // Publish to /goal_pose directly for Nav2
-    this.sendGoal(numX, numY, numYaw);
-
     // Call service for location_manager tracking
     try {
-      return await this.callService('/amr/navigate_to_pose', 'bumbleb_bot/srv/NavigateToPose', {
+      const res = await this.callService('/amr/navigate_to_pose', 'bumbleb_bot/srv/NavigateToPose', {
         x: numX,
         y: numY,
         yaw: numYaw
       });
+      if (res && res.success) {
+        return res;
+      }
     } catch (err) {
-      console.warn('navigate_to_pose service call fallback:', err);
-      this.sendCommand({ action: 'navigate_to_pose', x: numX, y: numY, yaw: numYaw });
-      return { success: true, message: `Goal dispatched to (${numX.toFixed(2)}, ${numY.toFixed(2)})` };
+      console.warn('navigate_to_pose service call fallback to topic:', err);
     }
+
+    // Fallback directly to /goal_pose topic for Nav2 and json command
+    this.sendGoal(numX, numY, numYaw);
+    this.sendCommand({ action: 'navigate_to_pose', x: numX, y: numY, yaw: numYaw });
+    return { success: true, message: `Goal dispatched to (${numX.toFixed(2)}, ${numY.toFixed(2)})` };
   }
 
   // Set AMCL Initial Pose Estimate (via typed service, /initialpose topic, and fallback)
