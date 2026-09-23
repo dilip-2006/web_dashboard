@@ -495,21 +495,10 @@ class ROSConnectionManager {
     const numY = Number(y) || 0.0;
     const numYaw = Number(yaw) || 0.0;
 
-    // Call service for location_manager tracking
-    try {
-      const res = await this.callService('/amr/navigate_to_pose', 'bumbleb_bot/srv/NavigateToPose', {
-        x: numX,
-        y: numY,
-        yaw: numYaw
-      });
-      if (res && res.success) {
-        return res;
-      }
-    } catch (err) {
-      console.warn('navigate_to_pose service call fallback to topic:', err);
-    }
-
-    // Fallback directly to /goal_pose topic for Nav2 and json command
+    // Publish immediately. The location manager subscribes to /goal_pose and
+    // forwards it to Nav2 asynchronously. Calling the navigation service
+    // first can block until Nav2 finishes the goal, making the dashboard look
+    // frozen and delaying the actual goal dispatch.
     this.sendGoal(numX, numY, numYaw);
     this.sendCommand({ action: 'navigate_to_pose', x: numX, y: numY, yaw: numYaw });
     return { success: true, message: `Goal dispatched to (${numX.toFixed(2)}, ${numY.toFixed(2)})` };
