@@ -1,13 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import rosConnection from '../ros/rosConnection';
 
-const INITIAL_LOCATIONS = [
-  { id: 'loc-1', name: 'Inbound Dock A', type: 'loading', x: 1.50, y: 2.00, yaw: 0.0, map: 'warehouse_main' },
-  { id: 'loc-2', name: 'Shelf 01 (Fast Pick)', type: 'shelf', x: 3.20, y: 1.10, yaw: 1.57, map: 'warehouse_main' },
-  { id: 'loc-3', name: 'Shelf 04 (Heavy Staging)', type: 'shelf', x: 2.80, y: -1.80, yaw: -1.57, map: 'warehouse_main' },
-  { id: 'loc-4', name: 'Inspection Bay', type: 'staging', x: -1.20, y: 1.50, yaw: 3.14, map: 'warehouse_main' },
-  { id: 'loc-5', name: 'Rapid Charger #01', type: 'charging', x: -2.00, y: -1.20, yaw: 0.0, map: 'warehouse_main' }
-];
+const INITIAL_LOCATIONS = [];
 
 const INITIAL_MAPS = ['warehouse_main', 'warehouse_sector_b', 'assembly_floor'];
 
@@ -70,7 +64,7 @@ export function useRos() {
         setRobotPose(data.robot_pose);
       }
     };
-    const onLocs = (data) => setLocations(Array.isArray(data) && data.length > 0 ? data : INITIAL_LOCATIONS);
+    const onLocs = (data) => setLocations(Array.isArray(data) ? data : []);
     const onMaps = (data) => setMaps(Array.isArray(data) && data.length > 0 ? data : INITIAL_MAPS);
     const onBat = (data) => setBattery({ percentage: data.percentage, voltage: data.voltage });
     const onMap = (data) => setMapData(data);
@@ -343,25 +337,27 @@ export function useRos() {
   const sendLocationCommand = (payload) => {
     if (connected) {
       rosConnection.sendLocationCommand(payload);
-    } else {
-      if (payload.action === 'save_location') {
-        const newLoc = {
-          id: `loc-${Date.now()}`,
-          name: payload.name,
-          type: payload.type || 'shelf',
-          x: payload.use_current_pose ? robotPose.x : payload.x,
-          y: payload.use_current_pose ? robotPose.y : payload.y,
-          yaw: payload.yaw || 0.0,
-          map: payload.map || 'warehouse_main'
-        };
-        setLocations(prev => [...prev, newLoc]);
-      } else if (payload.action === 'delete_location') {
-        setLocations(prev => prev.filter(l => l.name !== payload.name));
-      } else if (payload.action === 'navigate_to_location') {
-        const loc = locations.find(l => l.name === payload.name);
-        if (loc) {
-          sendGoal(loc.x, loc.y, loc.yaw || 0.0);
-        }
+    }
+    // Optimistic local state update (always active in sim/disconnected, and ensures instant UI feedback)
+    if (payload.action === 'save_location') {
+      const newLoc = {
+        id: `loc-${Date.now()}`,
+        name: payload.name,
+        type: payload.type || 'shelf',
+        x: payload.use_current_pose ? robotPose.x : payload.x,
+        y: payload.use_current_pose ? robotPose.y : payload.y,
+        yaw: payload.yaw || 0.0,
+        map: payload.map || 'warehouse_main'
+      };
+      setLocations(prev => [...prev.filter(l => l.name !== payload.name), newLoc]);
+    } else if (payload.action === 'delete_location') {
+      setLocations(prev => prev.filter(l => l.name !== payload.name));
+    } else if (payload.action === 'clear_all_locations' || payload.action === 'clear_all') {
+      setLocations([]);
+    } else if (payload.action === 'navigate_to_location') {
+      const loc = locations.find(l => l.name === payload.name);
+      if (loc) {
+        sendGoal(loc.x, loc.y, loc.yaw || 0.0);
       }
     }
   };

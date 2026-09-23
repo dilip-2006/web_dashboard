@@ -1,5 +1,5 @@
 import React, { useRef, useEffect, useState, useCallback } from 'react';
-import { Maximize2, Minimize2, Crosshair, Navigation, MapPin, ZoomIn, ZoomOut, RotateCcw, Compass, Eye, EyeOff, Layers, Sliders } from 'lucide-react';
+import { Maximize2, Minimize2, Crosshair, Navigation, MapPin, ZoomIn, ZoomOut, RotateCcw, Compass, Eye, EyeOff, Layers } from 'lucide-react';
 
 export default function MapViewer({
   mapData,
@@ -13,8 +13,8 @@ export default function MapViewer({
   onSendGoal,
   onSaveLocationAtPose,
   onSetInitialPose,
-  // Matches the fixed base_link -> lidar_link URDF transform (x = 0.22 m).
-  lidarOffsetX: propLidarOffsetX = 0.22
+  // Fixed base_link -> lidar_link URDF transform (x = 0.22 m / 22cm)
+  lidarOffsetX = 0.22
 }) {
   const canvasRef = useRef(null);
   const offscreenCanvasRef = useRef(null);
@@ -30,24 +30,6 @@ export default function MapViewer({
   const [mouseMapPos, setMouseMapPos] = useState({ x: 0, y: 0 });
   const [isFullscreen, setIsFullscreen] = useState(false);
 
-  // Front LiDAR offset forward from differential drive axle center (base_link) in meters
-  const [lidarOffsetX, setLidarOffsetX] = useState(() => {
-    try {
-      const saved = typeof window !== 'undefined' ? localStorage.getItem('amr_lidar_offset_x') : null;
-      if (saved !== null && !isNaN(parseFloat(saved))) {
-        return parseFloat(saved);
-      }
-    } catch (_) {}
-    return propLidarOffsetX ?? 0.20;
-  });
-  const [showOffsetConfig, setShowOffsetConfig] = useState(false);
-
-  useEffect(() => {
-    if (propLidarOffsetX != null && !isNaN(propLidarOffsetX)) {
-      setLidarOffsetX(propLidarOffsetX);
-    }
-  }, [propLidarOffsetX]);
-
   // Layers visibility - Grid disabled by default for clean minimal view
   const [showLaser, setShowLaser] = useState(true);
   const [showTrail, setShowTrail] = useState(true);
@@ -58,6 +40,15 @@ export default function MapViewer({
   // Robot trajectory trail (history)
   const [trail, setTrail] = useState([]);
   const lastTrailPoseRef = useRef({ x: null, y: null });
+
+  // Clean up any legacy localStorage offset
+  useEffect(() => {
+    try {
+      if (typeof window !== 'undefined') {
+        localStorage.removeItem('amr_lidar_offset_x');
+      }
+    } catch (_) {}
+  }, []);
 
   // Update trail when robot moves
   useEffect(() => {
@@ -92,16 +83,16 @@ export default function MapViewer({
         const pixelIdx = (row * width + col) * 4;
 
         if (pVal === -1) {
-          // Unknown: medium slate gray
+          // Unknown: soft light gray
           pixels[pixelIdx] = 203;
           pixels[pixelIdx + 1] = 213;
           pixels[pixelIdx + 2] = 225;
           pixels[pixelIdx + 3] = 255;
         } else if (pVal === 0) {
-          // Free navigable space: soothing matte light gray floor
-          pixels[pixelIdx] = 238;
-          pixels[pixelIdx + 1] = 242;
-          pixels[pixelIdx + 2] = 246;
+          // Free navigable space: crisp clean white/off-white floor
+          pixels[pixelIdx] = 248;
+          pixels[pixelIdx + 1] = 250;
+          pixels[pixelIdx + 2] = 252;
           pixels[pixelIdx + 3] = 255;
         } else {
           // Occupied obstacle/wall: high-contrast dark obsidian
@@ -138,8 +129,8 @@ export default function MapViewer({
     const width = canvas.width = canvas.parentElement.clientWidth || 800;
     const height = canvas.height = canvas.parentElement.clientHeight || 550;
 
-    // Background - Soothing Light Gray Floor
-    ctx.fillStyle = '#e2e8f0';
+    // Background - Clean Light Gray Canvas Floor
+    ctx.fillStyle = '#f4f6f9';
     ctx.fillRect(0, 0, width, height);
 
     // 1. Grid Lines & Meter Coordinates
@@ -384,9 +375,9 @@ export default function MapViewer({
     if (activeGoal) {
       const gp = mapToCanvas(activeGoal.x, activeGoal.y, width, height);
       ctx.save();
-      ctx.strokeStyle = '#f59e0b';
-      ctx.lineWidth = 2;
-      ctx.shadowColor = '#f59e0b';
+      ctx.strokeStyle = '#ea580c';
+      ctx.lineWidth = 2.5;
+      ctx.shadowColor = '#ea580c';
       ctx.shadowBlur = 10;
       ctx.beginPath();
       ctx.arc(gp.x, gp.y, 12, 0, Math.PI * 2);
@@ -403,7 +394,7 @@ export default function MapViewer({
         const arrowLen = 26;
         const ax = gp.x + arrowLen * Math.cos(-activeGoal.yaw);
         const ay = gp.y + arrowLen * Math.sin(-activeGoal.yaw);
-        ctx.strokeStyle = '#fbbf24';
+        ctx.strokeStyle = '#f97316';
         ctx.lineWidth = 3;
         ctx.beginPath();
         ctx.moveTo(gp.x, gp.y);
@@ -420,14 +411,14 @@ export default function MapViewer({
       const isInitPose = toolMode === 'INITIAL_POSE';
 
       // Target circle
-      ctx.strokeStyle = isInitPose ? '#10b981' : '#f59e0b';
+      ctx.strokeStyle = isInitPose ? '#10b981' : '#ea580c';
       ctx.lineWidth = 2;
       ctx.beginPath();
       ctx.arc(startP.x, startP.y, 12, 0, Math.PI * 2);
       ctx.stroke();
 
       // Heading arrow from start to current drag
-      ctx.strokeStyle = isInitPose ? '#34d399' : '#38bdf8';
+      ctx.strokeStyle = isInitPose ? '#34d399' : '#f97316';
       ctx.lineWidth = 3;
       ctx.beginPath();
       ctx.moveTo(startP.x, startP.y);
@@ -436,7 +427,7 @@ export default function MapViewer({
 
       // Arrow head
       const angle = Math.atan2(currP.y - startP.y, currP.x - startP.x);
-      ctx.fillStyle = isInitPose ? '#34d399' : '#38bdf8';
+      ctx.fillStyle = isInitPose ? '#34d399' : '#f97316';
       ctx.beginPath();
       ctx.moveTo(currP.x, currP.y);
       ctx.lineTo(currP.x - 10 * Math.cos(angle - Math.PI / 6), currP.y - 10 * Math.sin(angle - Math.PI / 6));
@@ -445,7 +436,7 @@ export default function MapViewer({
       ctx.fill();
     }
 
-    // 9. Draw BumbleB Robot Footprint, Headlights & Heading
+    // 9. Draw BUMBLEB Robot Footprint (Orange & Black Bumblebee theme)
     if (robotPose) {
       const rx = robotPose.x || 0;
       const ry = robotPose.y || 0;
@@ -460,12 +451,12 @@ export default function MapViewer({
       const lengthPx = 0.60 * camera.scale;
       const widthPx = 0.40 * camera.scale;
 
-      // Forward Headlight Illumination Cone (Bumblebee High-Beam)
+      // Forward Headlight Illumination Cone (Cyber Orange High-Beam)
       const headlightBeam = 1.4 * camera.scale;
       const headlightGrad = ctx.createRadialGradient(lengthPx / 2, 0, 0, lengthPx / 2 + headlightBeam / 2, 0, headlightBeam);
-      headlightGrad.addColorStop(0, 'rgba(250, 204, 21, 0.40)');
-      headlightGrad.addColorStop(0.5, 'rgba(234, 179, 8, 0.15)');
-      headlightGrad.addColorStop(1, 'rgba(234, 179, 8, 0.0)');
+      headlightGrad.addColorStop(0, 'rgba(249, 115, 22, 0.35)');
+      headlightGrad.addColorStop(0.5, 'rgba(234, 88, 12, 0.12)');
+      headlightGrad.addColorStop(1, 'rgba(234, 88, 12, 0.0)');
 
       ctx.fillStyle = headlightGrad;
       ctx.beginPath();
@@ -475,36 +466,36 @@ export default function MapViewer({
       ctx.fill();
 
       // Ambient Chassis Glow
-      ctx.shadowColor = 'rgba(234, 179, 8, 0.6)';
+      ctx.shadowColor = 'rgba(234, 88, 12, 0.55)';
       ctx.shadowBlur = 14;
 
-      // Main Bumblebee Yellow Body Chassis
+      // Main Autonomous Robot Body Chassis (Safety Orange & Carbon Black Bumblebee Style)
       const chassisGrad = ctx.createLinearGradient(-lengthPx / 2, -widthPx / 2, lengthPx / 2, widthPx / 2);
-      chassisGrad.addColorStop(0, '#f59e0b');
-      chassisGrad.addColorStop(0.5, '#facc15');
-      chassisGrad.addColorStop(1, '#eab308');
+      chassisGrad.addColorStop(0, '#ff7a1a');
+      chassisGrad.addColorStop(0.5, '#f97316');
+      chassisGrad.addColorStop(1, '#ea580c');
 
       ctx.fillStyle = chassisGrad;
-      ctx.strokeStyle = '#ffffff';
-      ctx.lineWidth = 1.5;
+      ctx.strokeStyle = '#090d16'; // sleek black perimeter
+      ctx.lineWidth = 2;
       ctx.beginPath();
       ctx.roundRect(-lengthPx / 2, -widthPx / 2, lengthPx, widthPx, 6);
       ctx.fill();
       ctx.stroke();
       ctx.shadowBlur = 0;
 
-      // Carbon Fiber Racing Stripes down the spine
+      // Carbon Fiber Racing Stripes down the spine (Matte Black)
       ctx.fillStyle = '#090d16';
       const stripeW = 0.07 * camera.scale;
       const stripeGap = 0.02 * camera.scale;
       ctx.fillRect(-lengthPx / 2 + 2, -stripeW - stripeGap, lengthPx - 4, stripeW);
       ctx.fillRect(-lengthPx / 2 + 2, stripeGap, lengthPx - 4, stripeW);
 
-      // Left and Right High-Grip Drive Wheels (Axle at x = 0)
+      // Left and Right High-Grip Drive Wheels (Axle at x = 0) (Matte Black with Orange Rim line)
       const wheelL = 0.20 * camera.scale;
       const wheelW = 0.06 * camera.scale;
-      ctx.fillStyle = '#18181b';
-      ctx.strokeStyle = '#facc15';
+      ctx.fillStyle = '#111827';
+      ctx.strokeStyle = '#f97316';
       ctx.lineWidth = 1.5;
       // Left wheel (centered at axle x = 0)
       ctx.fillRect(-wheelL / 2, -widthPx / 2 - wheelW / 2, wheelL, wheelW);
@@ -514,7 +505,7 @@ export default function MapViewer({
       ctx.strokeRect(-wheelL / 2, widthPx / 2 - wheelW / 2, wheelL, wheelW);
 
       // Wheel Axle Line connecting the two wheels across the chassis at x = 0
-      ctx.strokeStyle = '#27272a';
+      ctx.strokeStyle = '#1f2937';
       ctx.lineWidth = 2;
       ctx.beginPath();
       ctx.moveTo(0, -widthPx / 2);
@@ -526,7 +517,7 @@ export default function MapViewer({
       ctx.beginPath();
       ctx.arc(0, 0, 4, 0, Math.PI * 2);
       ctx.fill();
-      ctx.fillStyle = '#facc15';
+      ctx.fillStyle = '#f97316';
       ctx.beginPath();
       ctx.arc(0, 0, 2, 0, Math.PI * 2);
       ctx.fill();
@@ -823,14 +814,14 @@ export default function MapViewer({
   return (
     <div
       ref={containerRef}
-      className={`panel flex flex-col flex-1 relative overflow-hidden select-none ${
+      className={`clay-card flex flex-col flex-1 relative overflow-hidden select-none ${
         isFullscreen ? 'fixed inset-0 z-50 rounded-none w-screen h-screen' : 'h-full min-h-[360px] sm:min-h-[460px]'
       }`}
     >
       {/* Map Header Toolbar */}
-      <div className="panel-header py-2 px-3 sm:px-3.5 bg-slate-900 border-b border-slate-800 text-white">
+      <div className="panel-header py-2.5 px-4 bg-slate-950 border-b border-slate-800 text-white">
         <div className="flex items-center gap-2">
-          <div className="p-1 rounded bg-slate-800 text-yellow-400">
+          <div className="p-1 rounded-lg bg-slate-800 text-orange-500">
             <Compass className="w-3.5 h-3.5 animate-spin-slow" />
           </div>
           <span className="text-xs font-bold tracking-wide text-white font-mono truncate">
@@ -846,13 +837,13 @@ export default function MapViewer({
           </div>
           <div className="flex items-center gap-1">
             <span>ZOOM:</span>
-            <span className="text-yellow-400 font-bold">{camera.scale.toFixed(0)} px/m</span>
+            <span className="text-orange-400 font-bold">{camera.scale.toFixed(0)} px/m</span>
           </div>
         </div>
       </div>
 
       {/* Main Canvas Area */}
-      <div className="flex-1 relative w-full h-full bg-slate-200 overflow-hidden">
+      <div className="flex-1 relative w-full h-full bg-slate-100 overflow-hidden">
         <canvas
           ref={canvasRef}
           onMouseDown={handleMouseDown}
@@ -866,15 +857,15 @@ export default function MapViewer({
           className="w-full h-full block cursor-crosshair touch-none select-none"
         />
 
-        {/* Responsive Floating HUD Top Container */}
-        <div className="absolute top-2 sm:top-3 inset-x-2 sm:inset-x-3 flex flex-wrap items-start justify-between gap-1.5 pointer-events-none z-10">
+        {/* Responsive Floating HUD Top Container (Zero Overlap Layout) */}
+        <div className="absolute top-2.5 sm:top-3 inset-x-2.5 sm:inset-x-3 flex flex-wrap items-start justify-between gap-2 pointer-events-none z-10">
           {/* Primary Interactive Action Toolbar */}
-          <div className="flex items-center gap-1 p-1 rounded-xl bg-slate-900/95 border border-slate-800 shadow-lg backdrop-blur-xs pointer-events-auto">
+          <div className="flex items-center gap-1 p-1 rounded-2xl bg-slate-950/95 border border-slate-800 shadow-xl backdrop-blur-md pointer-events-auto">
             <button
               onClick={() => setToolMode('PAN')}
-              className={`px-2.5 sm:px-3 py-1.5 rounded-lg text-xs font-mono font-bold flex items-center gap-1.5 transition-all cursor-pointer ${
+              className={`px-2.5 sm:px-3 py-1.5 rounded-xl text-xs font-mono font-bold flex items-center gap-1.5 transition-all cursor-pointer ${
                 toolMode === 'PAN'
-                  ? 'bg-yellow-400 text-slate-950 font-extrabold shadow-sm'
+                  ? 'bg-gradient-to-r from-orange-500 to-orange-600 text-white font-extrabold shadow-sm'
                   : 'text-slate-400 hover:text-white hover:bg-slate-800'
               }`}
               title="Pan Viewport (Click/touch and drag map)"
@@ -884,28 +875,28 @@ export default function MapViewer({
 
             <button
               onClick={() => setToolMode('NAV_GOAL')}
-              className={`px-2.5 sm:px-3 py-1.5 rounded-lg text-xs font-mono font-bold flex items-center gap-1 sm:gap-1.5 transition-all cursor-pointer ${
+              className={`px-2.5 sm:px-3 py-1.5 rounded-xl text-xs font-mono font-bold flex items-center gap-1 sm:gap-1.5 transition-all cursor-pointer ${
                 toolMode === 'NAV_GOAL'
-                  ? 'bg-yellow-400 text-slate-950 font-extrabold shadow-sm'
+                  ? 'bg-gradient-to-r from-orange-500 to-orange-600 text-white font-extrabold shadow-sm'
                   : 'text-slate-400 hover:text-white hover:bg-slate-800'
               }`}
               title="Click & Drag on map to set Nav2 Goal + Orientation heading"
             >
-              <Crosshair className={`w-3.5 h-3.5 ${toolMode === 'NAV_GOAL' ? 'text-slate-950' : 'text-yellow-400'}`} />
+              <Crosshair className={`w-3.5 h-3.5 ${toolMode === 'NAV_GOAL' ? 'text-white' : 'text-orange-400'}`} />
               <span className="hidden sm:inline">Set Nav Goal</span>
               <span className="sm:hidden">Goal</span>
             </button>
 
             <button
               onClick={() => setToolMode('INITIAL_POSE')}
-              className={`px-2.5 sm:px-3 py-1.5 rounded-lg text-xs font-mono font-bold flex items-center gap-1 sm:gap-1.5 transition-all cursor-pointer ${
+              className={`px-2.5 sm:px-3 py-1.5 rounded-xl text-xs font-mono font-bold flex items-center gap-1 sm:gap-1.5 transition-all cursor-pointer ${
                 toolMode === 'INITIAL_POSE'
-                  ? 'bg-emerald-400 text-slate-950 font-extrabold shadow-sm'
+                  ? 'bg-emerald-500 text-white font-extrabold shadow-sm'
                   : 'text-slate-400 hover:text-white hover:bg-slate-800'
               }`}
               title="Click & Drag on map to set AMCL 2D Initial Pose Estimate"
             >
-              <Navigation className={`w-3.5 h-3.5 ${toolMode === 'INITIAL_POSE' ? 'text-slate-950' : 'text-emerald-400'}`} />
+              <Navigation className={`w-3.5 h-3.5 ${toolMode === 'INITIAL_POSE' ? 'text-white' : 'text-emerald-400'}`} />
               <span className="hidden sm:inline">2D Pose Estimate</span>
               <span className="sm:hidden">Pose</span>
             </button>
@@ -913,7 +904,7 @@ export default function MapViewer({
             {onSetInitialPose && (
               <button
                 onClick={() => onSetInitialPose(0, 0, 0)}
-                className="px-2 py-1.5 rounded-lg text-[10px] font-mono font-bold text-slate-400 hover:text-white hover:bg-slate-800 transition-all cursor-pointer"
+                className="px-2 py-1.5 rounded-xl text-[10px] font-mono font-bold text-slate-400 hover:text-white hover:bg-slate-800 transition-all cursor-pointer"
                 title="Reset AMCL initial pose to (0, 0, 0)"
               >
                 (0,0)
@@ -922,19 +913,19 @@ export default function MapViewer({
 
             <button
               onClick={() => setToolMode('MARK_LOC')}
-              className={`px-2.5 sm:px-3 py-1.5 rounded-lg text-xs font-mono font-bold flex items-center gap-1 sm:gap-1.5 transition-all cursor-pointer ${
+              className={`px-2.5 sm:px-3 py-1.5 rounded-xl text-xs font-mono font-bold flex items-center gap-1 sm:gap-1.5 transition-all cursor-pointer ${
                 toolMode === 'MARK_LOC'
-                  ? 'bg-yellow-400 text-slate-950 font-extrabold shadow-sm'
+                  ? 'bg-gradient-to-r from-orange-500 to-orange-600 text-white font-extrabold shadow-sm'
                   : 'text-slate-400 hover:text-white hover:bg-slate-800'
               }`}
-              title="Click map to create a new named warehouse location pin"
+              title="Click map to create a new named waypoint location pin"
             >
-              <MapPin className={`w-3.5 h-3.5 ${toolMode === 'MARK_LOC' ? 'text-slate-950' : 'text-yellow-400'}`} />
+              <MapPin className={`w-3.5 h-3.5 ${toolMode === 'MARK_LOC' ? 'text-white' : 'text-orange-400'}`} />
               <span className="hidden sm:inline">Mark Pin</span>
               <span className="sm:hidden">Pin</span>
             </button>
 
-            <div className="h-4 w-[1px] bg-slate-700 mx-0.5 sm:mx-1 hidden xs:block" />
+            <div className="h-4 w-[1px] bg-slate-800 mx-0.5 sm:mx-1 hidden xs:block" />
 
             {/* Quick Zoom & Center buttons */}
             <div className="flex items-center gap-0.5">
@@ -961,10 +952,10 @@ export default function MapViewer({
               </button>
               <button
                 onClick={centerOnRobot}
-                className="p-1 sm:p-1.5 rounded-lg text-slate-400 hover:text-yellow-400 hover:bg-slate-800 transition-colors cursor-pointer"
+                className="p-1 sm:p-1.5 rounded-lg text-slate-400 hover:text-orange-400 hover:bg-slate-800 transition-colors cursor-pointer"
                 title="Center View on Robot"
               >
-                <Navigation className="w-3.5 sm:w-4 h-3.5 sm:h-4 text-yellow-400" />
+                <Navigation className="w-3.5 sm:w-4 h-3.5 sm:h-4 text-orange-400" />
               </button>
               <button
                 onClick={toggleFullscreen}
@@ -977,10 +968,10 @@ export default function MapViewer({
           </div>
 
           {/* Layer Controls Bar */}
-          <div className="flex items-center gap-1 p-1 rounded-xl bg-slate-900/95 border border-slate-800 shadow-lg text-xs font-mono pointer-events-auto">
+          <div className="flex items-center gap-1 p-1 rounded-2xl bg-slate-950/95 border border-slate-800 shadow-xl text-xs font-mono pointer-events-auto backdrop-blur-md">
             <button
               onClick={() => setShowLaser(!showLaser)}
-              className={`px-1.5 sm:px-2 py-0.5 sm:py-1 rounded text-[10px] sm:text-[11px] transition-all font-semibold flex items-center gap-1 cursor-pointer ${
+              className={`px-2 py-1 rounded-xl text-[10px] sm:text-[11px] transition-all font-semibold flex items-center gap-1 cursor-pointer ${
                 showLaser ? 'bg-red-500 text-white font-bold' : 'text-slate-400 hover:text-white'
               }`}
               title="Toggle LiDAR Laser Scan Points"
@@ -989,86 +980,9 @@ export default function MapViewer({
               LiDAR
             </button>
 
-            {/* Front LiDAR Offset Quick Control */}
-            <div className="relative">
-              <button
-                onClick={() => setShowOffsetConfig(prev => !prev)}
-                className={`px-1.5 sm:px-2 py-0.5 sm:py-1 rounded text-[10px] sm:text-[11px] transition-all font-mono font-bold flex items-center gap-1 cursor-pointer border ${
-                  showOffsetConfig
-                    ? 'bg-yellow-400 text-slate-950 border-yellow-500 shadow-xs'
-                    : 'bg-slate-800/80 text-yellow-400 hover:text-yellow-300 border-slate-700 hover:bg-slate-800'
-                }`}
-                title="Adjust Front LiDAR Offset from Drive Wheel Center"
-              >
-                <Sliders className="w-2.5 h-2.5" />
-                <span>+{Math.round(lidarOffsetX * 100)}cm</span>
-              </button>
-
-              {showOffsetConfig && (
-                <div className="absolute top-full mt-2 left-0 sm:right-0 sm:left-auto p-3 rounded-xl bg-slate-950/98 border border-slate-700 shadow-2xl z-30 min-w-[240px] flex flex-col gap-2.5 text-slate-200 backdrop-blur-md">
-                  <div className="flex items-center justify-between text-xs font-bold">
-                    <span className="text-white flex items-center gap-1.5">
-                      <span className="w-2 h-2 rounded-full bg-red-500"></span>
-                      Front LiDAR Offset
-                    </span>
-                    <span className="text-yellow-400 font-mono text-xs">+{Number(lidarOffsetX).toFixed(2)}m</span>
-                  </div>
-
-                  <p className="text-[10px] text-slate-400 leading-tight">
-                    Forward offset from differential drive axle center (base_link) to front LiDAR sensor.
-                  </p>
-
-                  <div className="flex flex-col gap-1">
-                    <input
-                      type="range"
-                      min="0.00"
-                      max="0.28"
-                      step="0.01"
-                      value={lidarOffsetX}
-                      onChange={(e) => {
-                        const val = parseFloat(e.target.value);
-                        setLidarOffsetX(val);
-                        try {
-                          localStorage.setItem('amr_lidar_offset_x', val.toString());
-                        } catch (_) {}
-                      }}
-                      className="w-full accent-yellow-400 cursor-pointer h-1.5 bg-slate-800 rounded-lg"
-                    />
-                    <div className="flex items-center justify-between text-[9px] text-slate-500 font-mono">
-                      <span>0cm (Axle)</span>
-                      <span className="text-yellow-400 font-bold">20cm (Default)</span>
-                      <span>28cm (Bumper)</span>
-                    </div>
-                  </div>
-
-                  {/* Preset quick buttons */}
-                  <div className="flex items-center gap-1 pt-1 border-t border-slate-800">
-                    {[0.15, 0.18, 0.20, 0.22, 0.25].map((preset) => (
-                      <button
-                        key={preset}
-                        onClick={() => {
-                          setLidarOffsetX(preset);
-                          try {
-                            localStorage.setItem('amr_lidar_offset_x', preset.toString());
-                          } catch (_) {}
-                        }}
-                        className={`flex-1 py-1 rounded text-[10px] font-mono cursor-pointer transition-colors ${
-                          Math.abs(lidarOffsetX - preset) < 0.005
-                            ? 'bg-yellow-400 text-slate-950 font-bold'
-                            : 'bg-slate-800 text-slate-300 hover:bg-slate-700'
-                        }`}
-                      >
-                        {Math.round(preset * 100)}cm
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </div>
-
             <button
               onClick={() => setShowTrail(!showTrail)}
-              className={`px-1.5 sm:px-2 py-0.5 sm:py-1 rounded text-[10px] sm:text-[11px] transition-all font-semibold flex items-center gap-1 cursor-pointer ${
+              className={`px-2 py-1 rounded-xl text-[10px] sm:text-[11px] transition-all font-semibold flex items-center gap-1 cursor-pointer ${
                 showTrail ? 'bg-cyan-500 text-slate-950 font-bold' : 'text-slate-400 hover:text-white'
               }`}
               title="Toggle Odometry Trail"
@@ -1078,8 +992,8 @@ export default function MapViewer({
             </button>
             <button
               onClick={() => setShowGlobalCostmap(!showGlobalCostmap)}
-              className={`px-1.5 sm:px-2 py-0.5 sm:py-1 rounded text-[10px] sm:text-[11px] transition-all font-semibold cursor-pointer ${
-                showGlobalCostmap ? 'bg-orange-500 text-slate-950 font-bold' : 'text-slate-400 hover:text-white'
+              className={`px-2 py-1 rounded-xl text-[10px] sm:text-[11px] transition-all font-semibold cursor-pointer ${
+                showGlobalCostmap ? 'bg-orange-500 text-white font-bold' : 'text-slate-400 hover:text-white'
               }`}
               title="Toggle Nav2 global costmap"
             >
@@ -1087,8 +1001,8 @@ export default function MapViewer({
             </button>
             <button
               onClick={() => setShowGrid(!showGrid)}
-              className={`px-1.5 sm:px-2 py-0.5 sm:py-1 rounded text-[10px] sm:text-[11px] transition-all font-semibold cursor-pointer ${
-                showGrid ? 'bg-yellow-400 text-slate-950 font-bold' : 'text-slate-400 hover:text-white'
+              className={`px-2 py-1 rounded-xl text-[10px] sm:text-[11px] transition-all font-semibold cursor-pointer ${
+                showGrid ? 'bg-slate-700 text-white font-bold' : 'text-slate-400 hover:text-white'
               }`}
               title="Toggle Meter Grid"
             >
@@ -1097,37 +1011,37 @@ export default function MapViewer({
           </div>
         </div>
 
-        {/* Legend Overlay (Bottom Right) */}
-        <div className="absolute bottom-2.5 sm:bottom-3 right-2.5 sm:right-3 px-2 sm:px-3 py-1 sm:py-1.5 rounded-xl bg-slate-900/95 border border-slate-800 shadow-lg text-[10px] sm:text-[11px] font-mono flex items-center gap-2 sm:gap-3.5 z-10 text-slate-300">
+        {/* Legend Overlay (Bottom Right - Fixed Boundary to prevent overlap) */}
+        <div className="absolute bottom-2.5 sm:bottom-3 right-2.5 sm:right-3 px-3 py-1.5 rounded-2xl bg-slate-950/95 border border-slate-800 shadow-xl text-[10px] sm:text-[11px] font-mono flex items-center gap-2.5 sm:gap-3.5 z-10 text-slate-300 backdrop-blur-md">
           <div className="flex items-center gap-1.5">
-            <span className="h-2.5 w-2.5 rounded-xs bg-yellow-400 ring-1 ring-yellow-500"></span>
-            <span className="font-bold text-white">BumbleB</span>
+            <span className="h-2.5 w-2.5 rounded-xs bg-orange-500 ring-1 ring-orange-400"></span>
+            <span className="font-bold text-white">BUMBLEB</span>
           </div>
           <div className="hidden xs:flex items-center gap-1.5">
             <span className="h-2 w-2 rounded-full bg-red-500"></span>
-            <span>LiDAR (+{Math.round(lidarOffsetX * 100)}cm Front)</span>
+            <span>LiDAR (+{Math.round(lidarOffsetX * 100)}cm)</span>
           </div>
           <div className="hidden sm:flex items-center gap-1.5">
             <span className="h-1.5 w-3.5 bg-emerald-400 rounded-xs"></span>
             <span>Nav2 Path</span>
           </div>
           <div className="flex items-center gap-1.5">
-            <span className="h-2.5 w-2.5 rounded-full border border-yellow-400 bg-yellow-400/20"></span>
+            <span className="h-2.5 w-2.5 rounded-full border border-orange-400 bg-orange-500/25"></span>
             <span>Goal</span>
           </div>
         </div>
 
-        {/* Nav Goal Instruction Notice when active */}
+        {/* Nav Goal Instruction Notice when active (Bottom Left with safe width) */}
         {toolMode === 'NAV_GOAL' && (
-          <div className="absolute bottom-2.5 sm:bottom-3 left-2.5 sm:left-3 max-w-[calc(100vw-130px)] sm:max-w-md px-3 py-1.5 rounded-xl bg-slate-900/95 border border-yellow-400 text-[10px] sm:text-xs font-mono text-yellow-400 shadow-xl flex items-center gap-2 z-10 animate-bounce">
-            <Crosshair className="w-3.5 sm:w-4 h-3.5 sm:h-4 text-yellow-400 shrink-0" />
+          <div className="absolute bottom-2.5 sm:bottom-3 left-2.5 sm:left-3 max-w-[calc(100vw-230px)] sm:max-w-xs md:max-w-sm px-3.5 py-1.5 rounded-2xl bg-slate-950/95 border border-orange-500 text-[10px] sm:text-xs font-mono text-orange-400 shadow-2xl flex items-center gap-2 z-10 animate-bounce backdrop-blur-md">
+            <Crosshair className="w-3.5 sm:w-4 h-3.5 sm:h-4 text-orange-400 shrink-0" />
             <span className="truncate sm:whitespace-normal">Click or drag on map to set Nav2 goal & heading</span>
           </div>
         )}
 
-        {/* Initial Pose Instruction Notice when active */}
+        {/* Initial Pose Instruction Notice when active (Bottom Left with safe width) */}
         {toolMode === 'INITIAL_POSE' && (
-          <div className="absolute bottom-2.5 sm:bottom-3 left-2.5 sm:left-3 max-w-[calc(100vw-130px)] sm:max-w-md px-3 py-1.5 rounded-xl bg-slate-900/95 border border-emerald-400 text-[10px] sm:text-xs font-mono text-emerald-400 shadow-xl flex items-center gap-2 z-10 animate-bounce">
+          <div className="absolute bottom-2.5 sm:bottom-3 left-2.5 sm:left-3 max-w-[calc(100vw-230px)] sm:max-w-xs md:max-w-sm px-3.5 py-1.5 rounded-2xl bg-slate-950/95 border border-emerald-400 text-[10px] sm:text-xs font-mono text-emerald-400 shadow-2xl flex items-center gap-2 z-10 animate-bounce backdrop-blur-md">
             <Navigation className="w-3.5 sm:w-4 h-3.5 sm:h-4 text-emerald-400 shrink-0" />
             <span className="truncate sm:whitespace-normal">Click or drag on map to set AMCL 2D Pose Estimate</span>
           </div>

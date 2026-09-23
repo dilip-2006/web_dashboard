@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Activity, Battery, Cpu, Gauge, Navigation, Radio, Shield, Zap, Pause, Play } from 'lucide-react';
+import { Activity, Battery, Cpu, Gauge, Navigation, Radio, Shield, Zap, Pause, Play, Bot } from 'lucide-react';
 
 export default function ScrollingTicker({
   systemState,
@@ -24,18 +24,18 @@ export default function ScrollingTicker({
 
   const tickerItems = [
     {
-      id: 'fleet',
-      icon: Shield,
-      color: 'text-yellow-400',
-      label: 'FLEET',
-      value: 'BUMBLE•B #01',
+      id: 'robot',
+      icon: Bot,
+      color: 'text-orange-400',
+      label: 'UNIT',
+      value: 'BUMBLEB AMR',
       badge: connected ? 'ONLINE (REAL AMR)' : 'HARDWARE STANDBY',
       badgeColor: connected ? 'bg-emerald-950/80 text-emerald-400 border-emerald-800' : 'bg-slate-800 text-slate-300 border-slate-700'
     },
     {
       id: 'mode',
       icon: Cpu,
-      color: 'text-yellow-400',
+      color: 'text-orange-400',
       label: 'MODE',
       value: state,
       badge: isEstop ? 'E-STOP' : 'ACTIVE',
@@ -62,11 +62,11 @@ export default function ScrollingTicker({
     {
       id: 'battery',
       icon: Battery,
-      color: 'text-yellow-400',
+      color: 'text-orange-400',
       label: 'POWER',
       value: `${batPct}% (${batVolt}V)`,
       badge: 'NOMINAL',
-      badgeColor: 'bg-yellow-950/80 text-yellow-300 border-yellow-800'
+      badgeColor: 'bg-orange-950/80 text-orange-300 border-orange-800'
     },
     {
       id: 'nav',
@@ -89,7 +89,7 @@ export default function ScrollingTicker({
     {
       id: 'canbus',
       icon: Zap,
-      color: 'text-yellow-400',
+      color: 'text-orange-400',
       label: 'CAN-BUS',
       value: 'ZLAC706 DUAL MOTORS',
       badge: '0 ERR',
@@ -100,11 +100,11 @@ export default function ScrollingTicker({
   const displayItems = [...tickerItems, ...tickerItems];
 
   return (
-    <div className="relative bg-slate-950 border-b border-slate-800 overflow-hidden py-1 px-3 flex items-center text-xs font-mono select-none text-slate-300">
+    <div className="relative bg-slate-950 border-b border-slate-800/90 overflow-hidden py-1 px-3.5 flex items-center text-xs font-mono select-none text-slate-300">
       {/* Fixed Left Tag */}
       <div className="shrink-0 flex items-center gap-2 pr-3 mr-3 border-r border-slate-800 z-10 bg-slate-950">
-        <div className="h-2 w-2 rounded-full bg-yellow-400 animate-pulse" />
-        <span className="font-extrabold text-yellow-400 text-[10px] uppercase tracking-wider">
+        <div className="h-2 w-2 rounded-full bg-orange-500 animate-pulse" />
+        <span className="font-black text-orange-400 text-[10px] uppercase tracking-wider">
           TELEMETRY
         </span>
         <button
@@ -128,7 +128,7 @@ export default function ScrollingTicker({
               <div
                 key={`${item.id}-${index}`}
                 onClick={() => onItemClick?.(item.id)}
-                className="flex items-center gap-1.5 cursor-pointer py-0.5 px-2 rounded hover:bg-slate-900 transition-colors shrink-0"
+                className="flex items-center gap-1.5 cursor-pointer py-0.5 px-2 rounded-lg hover:bg-slate-900 transition-colors shrink-0"
               >
                 <Icon className={`w-3.5 h-3.5 ${item.color}`} />
                 <span className="text-slate-400 text-[10px] font-semibold">{item.label}:</span>

@@ -44,13 +44,14 @@ export default function MapManager({
   };
 
   return (
-    <div className="panel flex flex-col h-full">
-      <div className="panel-header py-2 px-3.5 bg-slate-900 border-b border-slate-800 text-white">
+    <div className="clay-card flex flex-col h-full overflow-hidden">
+      {/* Header */}
+      <div className="panel-header py-2.5 px-4 bg-slate-950 border-b border-slate-800 text-white">
         <span className="flex items-center gap-2 font-bold text-white text-xs">
-          <Map className="w-4 h-4 text-yellow-400" />
+          <Map className="w-4 h-4 text-orange-500" />
           MAP MANAGEMENT & STORAGE
         </span>
-        <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-slate-800 border border-slate-700 text-yellow-400 font-bold">
+        <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-slate-800 border border-slate-700 text-orange-400 font-bold">
           STORAGE
         </span>
       </div>
@@ -59,7 +60,7 @@ export default function MapManager({
         {/* Save Map Form */}
         <form onSubmit={handleSave} className="space-y-2">
           <label className="block text-xs font-mono font-bold text-slate-700 uppercase">
-            CURRENT SLAM MAP (/map)
+            CURRENT SLAM OCCUPANCY MAP (/map)
           </label>
           <div className="flex gap-2">
             <input
@@ -67,20 +68,20 @@ export default function MapManager({
               value={mapInput}
               onChange={(e) => setMapInput(e.target.value)}
               placeholder="e.g. warehouse_sector_b"
-              className="flex-1 bg-slate-200/80 border border-slate-300 rounded-lg px-3 py-1.5 text-xs text-slate-800 font-mono focus:border-amber-500 focus:outline-none"
+              className="flex-1 clay-inset bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-xs text-slate-900 font-mono focus:border-orange-500 focus:outline-none"
             />
             <button
               type="submit"
-              className="btn btn-bumble text-xs px-3 py-1.5 flex items-center gap-1.5 shrink-0 font-bold cursor-pointer"
+              className="btn-clay-orange text-xs px-3.5 py-2 flex items-center gap-1.5 shrink-0 font-bold cursor-pointer"
               title="Save 2D occupancy grid (.yaml and .pgm)"
             >
               <Save className="w-3.5 h-3.5" />
-              SAVE MAP
+              SAVE
             </button>
             <button
               type="button"
               onClick={handleSerialize}
-              className="btn btn-secondary text-xs px-2.5 py-1.5 flex items-center gap-1 shrink-0 font-bold hover:border-purple-300 hover:bg-purple-50/40 text-purple-700 cursor-pointer"
+              className="btn-clay-white text-xs px-3 py-2 flex items-center gap-1 shrink-0 font-bold hover:border-purple-300 text-purple-700 cursor-pointer"
               title="Serialize SLAM Toolbox pose graph (.posegraph and .data)"
             >
               SERIALIZE
@@ -88,7 +89,7 @@ export default function MapManager({
           </div>
 
           {(saveStatus || operationResult) && (
-            <div className={`text-[11px] font-mono flex items-center gap-1.5 mt-1 ${
+            <div className={`text-[11px] font-mono flex items-center gap-1.5 mt-1.5 ${
               (operationResult ? operationResult.success : saveStatus?.ok) ? 'text-emerald-600' : 'text-red-600'
             }`}>
               {(operationResult ? operationResult.success : saveStatus?.ok) ? (
@@ -106,12 +107,12 @@ export default function MapManager({
         {/* Available Maps List */}
         <div>
           <label className="block text-xs font-mono font-bold text-slate-700 mb-2 uppercase">
-            STORED WAREHOUSE MAPS ({maps.length})
+            STORED MAPS ({maps.length})
           </label>
-          <div className="space-y-1.5 max-h-[220px] overflow-y-auto pr-1 smooth-scroll">
+          <div className="space-y-2 max-h-[250px] overflow-y-auto pr-1 smooth-scroll">
             {maps.length === 0 ? (
-              <div className="text-center py-4 text-xs font-mono text-slate-500">
-                No saved maps found in maps/
+              <div className="text-center py-6 text-xs font-mono text-slate-500">
+                No saved maps found in storage.
               </div>
             ) : (
               maps.map((name) => {
@@ -119,17 +120,17 @@ export default function MapManager({
                 return (
                   <div
                     key={name}
-                    className={`p-2 rounded-lg border text-xs font-mono flex items-center justify-between gap-2 transition-all ${
+                    className={`p-3 rounded-2xl border text-xs font-mono flex items-center justify-between gap-2.5 transition-all shadow-2xs ${
                       isActive 
-                        ? 'bg-amber-100 border-amber-300 text-amber-900 shadow-2xs' 
-                        : 'bg-slate-200/70 border-slate-300 text-slate-800 hover:border-slate-400'
+                        ? 'bg-orange-50 border-orange-300 text-orange-950 font-bold ring-1 ring-orange-300' 
+                        : 'clay-inset bg-slate-50 border-slate-200 text-slate-800 hover:border-slate-300'
                     }`}
                   >
-                    <div className="flex items-center gap-2 truncate min-w-0">
-                      <FolderOpen className={`w-3.5 h-3.5 shrink-0 ${isActive ? 'text-amber-600' : 'text-slate-400'}`} />
+                    <div className="flex items-center gap-2.5 truncate min-w-0">
+                      <FolderOpen className={`w-4 h-4 shrink-0 ${isActive ? 'text-orange-600' : 'text-slate-400'}`} />
                       <span className="truncate font-bold">{name}</span>
                       {isActive && (
-                        <span className="text-[9px] px-1.5 py-0.2 rounded bg-amber-100 text-amber-800 border border-amber-200 font-bold shrink-0">
+                        <span className="text-[9px] px-2 py-0.5 rounded-full bg-orange-100 text-orange-800 border border-orange-200 font-bold shrink-0">
                           ACTIVE
                         </span>
                       )}
@@ -138,7 +139,7 @@ export default function MapManager({
                       {onResumeMapping && (
                         <button
                           onClick={() => onResumeMapping(name)}
-                          className="btn btn-secondary text-[10px] px-2 py-1 hover:border-purple-300 hover:text-purple-700 cursor-pointer"
+                          className="btn-clay-white text-[10px] px-2.5 py-1 hover:border-purple-300 hover:text-purple-700 cursor-pointer font-bold"
                           title="Resume SLAM mapping using serialized pose graph"
                         >
                           RESUME
@@ -147,8 +148,10 @@ export default function MapManager({
                       <button
                         onClick={() => onLoadMap(name)}
                         disabled={isActive}
-                        className={`btn text-[11px] px-2.5 py-1 shrink-0 ${
-                          isActive ? 'btn-secondary opacity-50' : 'btn-bumble'
+                        className={`text-[11px] px-3 py-1 rounded-xl shrink-0 font-bold transition-all ${
+                          isActive 
+                            ? 'btn-clay-white opacity-50 cursor-not-allowed' 
+                            : 'btn-clay-orange shadow-xs'
                         }`}
                         title="Load map for AMCL localization"
                       >

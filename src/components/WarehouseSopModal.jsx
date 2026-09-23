@@ -23,7 +23,7 @@ export default function WarehouseSopModal({ isOpen, onClose }) {
       details: [
         {
           heading: '1. Connect Operator Laptop/Tablet to Robot WiFi',
-          text: 'Connect your device to the AMR’s local WiFi network (or ensure both device and robot are on the same warehouse LAN). Note the robot’s IP address (e.g., 192.168.1.100).'
+          text: 'Connect your device to the AMR’s local WiFi network (or ensure both device and robot are on the same local network). Note the robot’s IP address (e.g., 192.168.1.100).'
         },
         {
           heading: '2. Unified Robot Bringup',
@@ -37,7 +37,7 @@ export default function WarehouseSopModal({ isOpen, onClose }) {
         },
         {
           heading: '4. Verify WebSocket Connection',
-          text: 'Check the top-right header badge: it should display "REAL HARDWARE • ROS 2" with a pulsing green indicator.'
+          text: 'Check the top-right header badge: it should display "AUTONOMOUS • ROS 2" with a pulsing green indicator.'
         }
       ]
     },
@@ -68,24 +68,24 @@ export default function WarehouseSopModal({ isOpen, onClose }) {
     {
       id: 'step-2',
       num: '2',
-      title: 'SLAM Warehouse Mapping',
+      title: 'SLAM Environment Mapping',
       tag: 'MAPPING',
       icon: Layers,
       color: 'text-purple-500',
       badgeColor: 'bg-purple-950/80 text-purple-300 border-purple-700',
-      summary: 'Build high-resolution 2D warehouse map using SLAM Toolbox.',
+      summary: 'Build high-resolution 2D map using SLAM Toolbox.',
       details: [
         {
           heading: '1. Click [2. MAPPING]',
           text: 'Click button 2 in the Autonomy Modes panel. The backend supervisor starts async_slam_toolbox_node, publishing the live occupancy grid to /map.'
         },
         {
-          heading: '2. Drive Through Warehouse Aisles',
-          text: 'Using the DRIVE tab (WASD or on-screen joystick), drive the AMR slowly (0.15 - 0.25 m/s) through all aisles, storage racks, and loading zones. Ensure loop closures occur by revisiting previously mapped intersections.'
+          heading: '2. Drive Through Environment Aisles',
+          text: 'Using the DRIVE tab (WASD or on-screen joystick), drive the AMR slowly (0.15 - 0.25 m/s) through all aisles and zones. Ensure loop closures occur by revisiting previously mapped intersections.'
         },
         {
           heading: '3. Inspect Map Quality in MapViewer',
-          text: 'Verify that walls, rack pillars, and obstacles appear sharp in the canvas. Red laser scan points should overlay cleanly on mapped walls.'
+          text: 'Verify that walls, pillars, and obstacles appear sharp in the canvas. Red laser scan points should overlay cleanly on mapped walls.'
         },
         {
           heading: '4. Save Occupancy Map & Serialize Pose Graph',
@@ -100,96 +100,88 @@ export default function WarehouseSopModal({ isOpen, onClose }) {
     {
       id: 'step-3',
       num: '3',
-      title: 'AMCL Localization & 2D Pose',
+      title: 'AMCL Localization',
       tag: 'LOCALIZATION',
       icon: Map,
       color: 'text-teal-500',
       badgeColor: 'bg-teal-950/80 text-teal-300 border-teal-700',
-      summary: 'Load the warehouse map and establish precise particle filter localization.',
+      summary: 'Load saved map and localize robot position with particle filters.',
       details: [
         {
-          heading: '1. Select Stored Map & Click [3. AMCL]',
-          text: 'In the MAPS tab or Mode Selector, select your saved warehouse map (e.g., warehouse_main) and click [3. AMCL] (or [LOAD MAP]). This launches Map Server and AMCL localization.'
+          heading: '1. Select & Load Stored Map',
+          text: 'In the MAPS tab, find your saved map and click [LOAD MAP], or click button 3 in Autonomy Modes. This activates nav2_map_server and amcl node.'
         },
         {
           heading: '2. Set 2D Initial Pose Estimate',
-          text: 'Click the [2D Pose Estimate] button in the MapViewer toolbar. Click and drag on the map canvas at the robot’s physical location in the direction it is facing. Or click [(0,0)] if the robot starts at the origin.'
+          text: 'Click the [2D Pose Estimate] tool in the MapViewer header. Click & drag on the map at the robot’s physical position and drag the green arrow to match its physical heading orientation.'
         },
         {
-          heading: '3. Verify AMCL Convergence',
-          text: 'Watch the LiDAR scan rays align with the static map walls. The Sensor Health panel will confirm: "AMCL localized: Publishing AMCL pose". Rotate the robot in place slightly if needed to tighten particle covariance.'
+          heading: '3. Rotate Robot in Place to Converge Particles',
+          text: 'Use the DRIVE tab (A/D keys) to rotate the robot 360° on the spot. AMCL particle cloud will rapidly converge, aligning the red LiDAR rays directly onto the map walls.'
         }
       ]
     },
     {
       id: 'step-4',
       num: '4',
-      title: 'Define Warehouse POIs & Stations',
-      tag: 'WAYPOINTS',
-      icon: MapPin,
-      color: 'text-amber-500',
-      badgeColor: 'bg-amber-950/80 text-amber-300 border-amber-700',
-      summary: 'Store warehouse racks, staging areas, loading docks, and chargers.',
+      title: 'Autonomous Navigation (Nav2)',
+      tag: 'AUTONOMY',
+      icon: Navigation,
+      color: 'text-orange-500',
+      badgeColor: 'bg-orange-950/80 text-orange-300 border-orange-700',
+      summary: 'Activate Nav2 stack to dispatch autonomous collision-free waypoint goals.',
       details: [
         {
-          heading: '1. Station Robot at Desired Location',
-          text: 'Drive the robot to the exact station or pallet spot (e.g. Inbound Dock A, Shelf Rack 01, Charging Pad).'
+          heading: '1. Click [4. NAV2]',
+          text: 'Click button 4 in the Autonomy Modes panel. This launches the Nav2 Controller, Planner (DWB local planner + NavFn global planner), and Costmap layers.'
         },
         {
-          heading: '2. Click [SAVE POSE] in POIS Tab',
-          text: 'Open the POIS tab and click [SAVE POSE]. Enter a descriptive name (e.g. "Dock A", "Shelf 04") and select the location type (Shelf, Loading Dock, Charging Station, Staging Area).'
+          heading: '2. Dispatch Point-and-Click Goals',
+          text: 'Click [Set Nav Goal] in the MapViewer toolbar. Click on any free space on the map and drag the arrow in the desired arrival heading. Nav2 will instantly compute a green global path trajectory.'
         },
         {
-          heading: '3. Interactive Map Pinning',
-          text: 'Alternatively, click [Mark Pin] in the MapViewer toolbar and click anywhere on the floor plan to create a waypoint without driving there.'
-        },
-        {
-          heading: '4. Waypoint Storage Persistence',
-          text: 'All coordinates are automatically stored in warehouse_locations.yaml by the Location Manager and survive reboots.'
+          heading: '3. Monitor Real-Time Arrival',
+          text: 'Watch the robot smoothly accelerate, navigate around static/dynamic obstacles, decelerate, and rotate to the target orientation upon arrival.'
         }
       ]
     },
     {
       id: 'step-5',
       num: '5',
-      title: 'Autonomous Nav2 Navigation',
-      tag: 'AUTONOMY',
-      icon: Navigation,
-      color: 'text-yellow-500',
-      badgeColor: 'bg-yellow-950/80 text-yellow-300 border-yellow-700',
-      summary: 'Dispatch point-to-point goals and automated multi-stop warehouse routes.',
+      title: 'Waypoint Dispatch & Missions',
+      tag: 'WORKFLOW',
+      icon: MapPin,
+      color: 'text-pink-500',
+      badgeColor: 'bg-pink-950/80 text-pink-300 border-pink-700',
+      summary: 'Create persistent POIs and execute multi-stop patrol missions.',
       details: [
         {
-          heading: '1. Click [4. NAV2]',
-          text: 'Click button 4 in the Autonomy Modes panel. The backend supervisor starts Nav2 (planner server, controller server, behavior tree navigator, and costmaps).'
+          heading: '1. Save Current Position as Waypoint',
+          text: 'Drive to any target location and click [+ PIN] on the Waypoint Strip, or click [Save Pose] in the POIS tab. Give it a descriptive name (e.g. Shelf A-1, Dock 2).'
         },
         {
-          heading: '2. Click-to-Goal Navigation',
-          text: 'Click [Set Nav Goal] on the map toolbar. Click and drag on any free space on the map. Nav2 plans a path (green line) avoiding static racks and dynamic obstacles, and drives autonomously.'
+          heading: '2. Mark Pin by Clicking Map',
+          text: 'Click [Mark Pin] in the MapViewer toolbar, then click anywhere on the floor map to create a waypoint marker without driving the robot there first.'
         },
         {
-          heading: '3. POI Dispatch',
-          text: 'In the POIS tab, simply click [DISPATCH] next to any saved location (e.g. "Dock A"). The AMR plans and executes navigation to that waypoint.'
-        },
-        {
-          heading: '4. Multi-Stop Mission Dispatcher',
-          text: 'Switch to the "Mission Dispatcher" template at the top. Build a sequential route (e.g. Inbound Dock -> Shelf 02 -> Inspection Bay -> Charger), set dwell wait times, and click [START MISSION] for automated continuous warehouse delivery cycles!'
+          heading: '3. Sequential Multi-Stop Mission Dispatcher',
+          text: 'Switch to the "Mission Dispatcher" template view in the top header. Add waypoints into a sequential route and click [START ROUTE] for fully automated multi-stop navigation with optional looping.'
         }
       ]
     },
     {
       id: 'step-6',
       num: '6',
-      title: 'Safety, Recovery & Emergency Stop',
-      tag: 'SAFETY PROTOCOLS',
-      icon: ShieldAlert,
+      title: 'Safety Interlocks & E-STOP',
+      tag: 'SAFETY PROTOCOL',
+      icon: AlertOctagon,
       color: 'text-red-500',
       badgeColor: 'bg-red-950/80 text-red-300 border-red-700',
-      summary: 'Safety interventions, goal cancellation, and obstacle recovery.',
+      summary: 'Hardware emergency stop protocol, brake overrides, and recovery.',
       details: [
         {
           heading: '1. Emergency Stop (E-STOP)',
-          text: 'Click the red [E-STOP] button in the top header or side panel at any time. It immediately halts Nav2, commands zero motor velocities, and latches the state machine in EMERGENCY_STOP.'
+          text: 'Click the red [E-STOP] button in the top header at any time. It immediately halts Nav2, commands zero motor velocities, and latches the state machine in EMERGENCY_STOP.'
         },
         {
           heading: '2. Resetting Emergency Stop',
@@ -208,17 +200,17 @@ export default function WarehouseSopModal({ isOpen, onClose }) {
   ];
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-5 bg-slate-950/70 backdrop-blur-sm animate-fade-in font-mono select-none">
-      <div className="bg-slate-900 border border-slate-800 rounded-2xl max-w-4xl w-full max-h-[90vh] flex flex-col shadow-2xl overflow-hidden text-white">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-5 bg-slate-950/70 backdrop-blur-md animate-fade-in font-mono select-none">
+      <div className="bg-slate-900 border border-slate-700/80 rounded-3xl max-w-4xl w-full max-h-[90vh] flex flex-col shadow-2xl overflow-hidden text-white">
         {/* Modal Header */}
-        <div className="px-4 py-3 bg-slate-950 border-b border-slate-800 flex items-center justify-between">
-          <div className="flex items-center gap-2.5">
-            <div className="p-1.5 rounded-lg bg-yellow-400/20 text-yellow-400 border border-yellow-400/30">
+        <div className="px-5 py-3.5 bg-slate-950 border-b border-slate-800 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="p-2 rounded-2xl bg-orange-500/20 text-orange-400 border border-orange-500/30">
               <BookOpen className="w-5 h-5" />
             </div>
             <div>
               <h2 className="text-sm sm:text-base font-black tracking-tight text-white flex items-center gap-2">
-                BUMBLE•B WAREHOUSE OPERATING PROCEDURE (SOP)
+                BUMBLEB AUTONOMOUS OPERATING PROCEDURE (SOP)
               </h2>
               <p className="text-[10px] text-slate-400">
                 Step-by-step standard procedure from WiFi connect to autonomous navigation
@@ -228,7 +220,7 @@ export default function WarehouseSopModal({ isOpen, onClose }) {
 
           <button
             onClick={onClose}
-            className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition-colors cursor-pointer"
+            className="p-2 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800 transition-colors cursor-pointer"
             title="Close Guide"
           >
             <X className="w-5 h-5" />
@@ -236,7 +228,7 @@ export default function WarehouseSopModal({ isOpen, onClose }) {
         </div>
 
         {/* Step Navigation Ribbon */}
-        <div className="flex border-b border-slate-800 bg-slate-950/60 overflow-x-auto no-scrollbar p-1.5 gap-1">
+        <div className="flex border-b border-slate-800 bg-slate-950/60 overflow-x-auto no-scrollbar p-2 gap-1.5">
           {steps.map((step, idx) => {
             const Icon = step.icon;
             const isActive = activeStep === idx;
@@ -246,12 +238,12 @@ export default function WarehouseSopModal({ isOpen, onClose }) {
                 onClick={() => setActiveStep(idx)}
                 className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold transition-all whitespace-nowrap cursor-pointer shrink-0 ${
                   isActive
-                    ? 'bg-yellow-400 text-slate-950 shadow-md font-extrabold'
+                    ? 'bg-gradient-to-r from-orange-500 to-orange-600 text-white shadow-md font-extrabold border border-orange-400/50'
                     : 'text-slate-400 hover:text-white hover:bg-slate-800'
                 }`}
               >
                 <span className={`w-4 h-4 rounded-full flex items-center justify-center text-[10px] font-black ${
-                  isActive ? 'bg-slate-950 text-yellow-400' : 'bg-slate-800 text-slate-300'
+                  isActive ? 'bg-slate-950 text-orange-400' : 'bg-slate-800 text-slate-300'
                 }`}>
                   {step.num}
                 </span>
@@ -264,17 +256,17 @@ export default function WarehouseSopModal({ isOpen, onClose }) {
         {/* Active Step Content */}
         <div className="flex-1 p-4 sm:p-6 overflow-y-auto space-y-4 smooth-scroll">
           {/* Step Header Banner */}
-          <div className="flex items-start justify-between gap-3 p-3.5 rounded-xl bg-slate-950/80 border border-slate-800">
-            <div className="flex items-center gap-3">
+          <div className="flex items-start justify-between gap-3 p-4 rounded-2xl bg-slate-950/80 border border-slate-800">
+            <div className="flex items-center gap-3.5">
               {React.createElement(steps[activeStep].icon, {
                 className: `w-7 h-7 ${steps[activeStep].color} shrink-0`
               })}
               <div>
                 <div className="flex items-center gap-2">
-                  <span className={`text-[9px] font-extrabold px-2 py-0.5 rounded border uppercase ${steps[activeStep].badgeColor}`}>
+                  <span className={`text-[9px] font-extrabold px-2 py-0.5 rounded-md border uppercase ${steps[activeStep].badgeColor}`}>
                     {steps[activeStep].tag}
                   </span>
-                  <h3 className="text-sm sm:text-base font-bold text-white">
+                  <h3 className="text-sm sm:text-base font-black text-white">
                     Step {steps[activeStep].num}: {steps[activeStep].title}
                   </h3>
                 </div>
@@ -286,19 +278,19 @@ export default function WarehouseSopModal({ isOpen, onClose }) {
           </div>
 
           {/* Detailed Instructions */}
-          <div className="space-y-3.5">
+          <div className="space-y-3">
             {steps[activeStep].details.map((detail, dIdx) => (
-              <div key={dIdx} className="p-3.5 rounded-xl bg-slate-800/50 border border-slate-700/60 space-y-1.5">
-                <h4 className="text-xs font-bold text-yellow-400 flex items-center gap-1.5">
-                  <CheckCircle2 className="w-4 h-4 text-yellow-400 shrink-0" />
+              <div key={dIdx} className="p-4 rounded-2xl bg-slate-800/40 border border-slate-700/60 space-y-1.5">
+                <h4 className="text-xs font-bold text-orange-400 flex items-center gap-2">
+                  <CheckCircle2 className="w-4 h-4 text-orange-500 shrink-0" />
                   {detail.heading}
                 </h4>
-                <p className="text-xs text-slate-300 leading-relaxed pl-5.5">
+                <p className="text-xs text-slate-300 leading-relaxed pl-6">
                   {detail.text}
                 </p>
                 {detail.code && (
-                  <div className="pl-5.5 pt-1">
-                    <div className="bg-slate-950 p-2.5 rounded-lg border border-slate-800 font-mono text-xs text-emerald-400 flex items-center justify-between select-all">
+                  <div className="pl-6 pt-1">
+                    <div className="bg-slate-950 p-2.5 rounded-xl border border-slate-800 font-mono text-xs text-emerald-400 flex items-center justify-between select-all">
                       <code>{detail.code}</code>
                     </div>
                   </div>
@@ -309,23 +301,23 @@ export default function WarehouseSopModal({ isOpen, onClose }) {
         </div>
 
         {/* Modal Footer Controls */}
-        <div className="px-4 py-3 bg-slate-950 border-t border-slate-800 flex items-center justify-between">
+        <div className="px-5 py-3.5 bg-slate-950 border-t border-slate-800 flex items-center justify-between">
           <button
             onClick={() => setActiveStep(prev => Math.max(0, prev - 1))}
             disabled={activeStep === 0}
-            className="px-3 py-1.5 rounded-lg btn-secondary text-xs font-bold disabled:opacity-40 cursor-pointer"
+            className="px-3.5 py-1.5 rounded-xl btn-clay-white text-xs font-bold disabled:opacity-40 cursor-pointer"
           >
-            ← Previous Step
+            ← Previous
           </button>
 
           <div className="text-[11px] text-slate-400">
-            Step <strong className="text-yellow-400">{activeStep + 1}</strong> of <strong>{steps.length}</strong>
+            Step <strong className="text-orange-400">{activeStep + 1}</strong> of <strong>{steps.length}</strong>
           </div>
 
           {activeStep < steps.length - 1 ? (
             <button
               onClick={() => setActiveStep(prev => Math.min(steps.length - 1, prev + 1))}
-              className="px-4 py-1.5 rounded-lg btn-bumble text-xs font-bold flex items-center gap-1 cursor-pointer"
+              className="px-4 py-1.5 rounded-xl btn-clay-orange text-xs font-bold flex items-center gap-1 cursor-pointer"
             >
               <span>Next Step</span>
               <ChevronRight className="w-3.5 h-3.5" />
@@ -333,7 +325,7 @@ export default function WarehouseSopModal({ isOpen, onClose }) {
           ) : (
             <button
               onClick={onClose}
-              className="px-4 py-1.5 rounded-lg bg-emerald-500 hover:bg-emerald-400 text-slate-950 text-xs font-bold flex items-center gap-1 cursor-pointer"
+              className="px-4 py-1.5 rounded-xl bg-gradient-to-r from-emerald-600 to-emerald-700 hover:from-emerald-500 hover:to-emerald-600 text-white text-xs font-bold flex items-center gap-1 cursor-pointer shadow-sm"
             >
               <span>Got It • Start Operating</span>
               <CheckCircle2 className="w-3.5 h-3.5" />

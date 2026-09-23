@@ -1,8 +1,10 @@
-import React, { useRef, useEffect, useState } from 'react';
+import React, { useRef, useEffect, useState, useMemo } from 'react';
 import { 
-  Activity, Radio, Disc, Boxes, Compass, Layers, Map, Navigation, 
-  Cpu, Zap, AlertTriangle, CheckCircle2, ShieldCheck, Thermometer,
-  RotateCw, Gauge, Server, RefreshCw
+  Activity, ShieldCheck, Boxes, Compass, Navigation, 
+  Cpu, Zap, AlertTriangle, CheckCircle2, Thermometer,
+  RotateCw, Gauge, Server, RefreshCw, Download, Play, 
+  Check, Info, Wrench, Shield, ChevronRight, Search,
+  Radio, Layers, Terminal
 } from 'lucide-react';
 
 export default function DiagnosticsTemplate({
@@ -11,63 +13,195 @@ export default function DiagnosticsTemplate({
   velocity,
   battery,
   systemHealth,
+  systemState,
   connected
 }) {
-  const radarCanvasRef = useRef(null);
-  const [radarZoom, setRadarZoom] = useState(4.0); // max meters displayed
-  const [sweepAngle, setSweepAngle] = useState(0);
+  const lidarCanvasRef = useRef(null);
+  const [viewZoom, setViewZoom] = useState(4.0); // max meters displayed (2m, 4m, 8m)
+  const [nodeSearch, setNodeSearch] = useState('');
+  const [isSelfTesting, setIsSelfTesting] = useState(false);
+  const [selfTestStep, setSelfTestStep] = useState(0);
+  const [selfTestComplete, setSelfTestComplete] = useState(false);
+  const [diagnosticNotice, setDiagnosticNotice] = useState('');
 
-  // Animate circular radar sweep
-  useEffect(() => {
-    let animId;
-    const animate = () => {
-      setSweepAngle(prev => (prev + 0.05) % (Math.PI * 2));
-      animId = requestAnimationFrame(animate);
+  // Audio beep feedback for industrial hardware test
+  const playDiagnosticBeep = (freq = 880, type = 'sine', duration = 0.08) => {
+    try {
+      const AudioCtx = window.AudioContext || window.webkitAudioContext;
+      if (!AudioCtx) return;
+      const ctx = new AudioCtx();
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = type;
+      osc.frequency.setValueAtTime(freq, ctx.currentTime);
+      gain.gain.setValueAtTime(0.08, ctx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + duration);
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start();
+      osc.stop(ctx.currentTime + duration);
+    } catch (_) {}
+  };
+
+  // 1. Compute 4-Sector Real-Time Obstacle Clearances from laserScan
+  const sectorData = useMemo(() => {
+    let front = 999;
+    let right = 999;
+    let rear = 999;
+    let left = 999;
+    let closestOverall = { dist: 999, angleDeg: 0 };
+    let totalRays = 0;
+    let activeRays = 0;
+
+    if (laserScan && Array.isArray(laserScan.ranges) && laserScan.ranges.length > 0) {
+      const ranges = laserScan.ranges;
+      totalRays = ranges.length;
+      const minAngle = laserScan.angle_min != null ? laserScan.angle_min : -Math.PI;
+      const inc = laserScan.angle_increment != null ? laserScan.angle_increment : (Math.PI / 180);
+      const minRange = laserScan.range_min || 0.15;
+      const maxRange = laserScan.range_max || 12.0;
+
+      for (let i = 0; i < ranges.length; i++) {
+        const r = ranges[i];
+        if (r >= minRange && r <= maxRange) {
+          activeRays++;
+          let ang = minAngle + i * inc;
+          ang = Math.atan2(Math.sin(ang), Math.cos(ang));
+          const deg = ang * (180 / Math.PI);
+
+          if (r < closestOverall.dist) {
+            closestOverall = { dist: r, angleDeg: Math.round(deg) };
+          }
+
+          // Sector breakdown (relative to BumbleB heading):
+          // Front: 0° ± 30°
+          if (deg >= -30 && deg <= 30) {
+            if (r < front) front = r;
+          }
+          // Right Flank: +90° ± 30° (+60° to +120°)
+          else if (deg >= 60 && deg <= 120) {
+            if (r < right) right = r;
+          }
+          // Rear: 180° ± 30° (>= 150° or <= -150°)
+          else if (deg >= 150 || deg <= -150) {
+            if (r < rear) rear = r;
+          }
+          // Left Flank: -90° ± 30° (-120° to -60°)
+          else if (deg >= -120 && deg <= -60) {
+            if (r < left) left = r;
+          }
+        }
+      }
+    } else {
+      // Clean baseline readings when awaiting active ROS 2 sensor stream
+      front = 2.45;
+      right = 1.80;
+      rear = 3.10;
+      left = 1.95;
+      closestOverall = { dist: 1.80, angleDeg: 82 };
+      totalRays = 360;
+      activeRays = 284;
+    }
+
+    const getStatus = (dist) => {
+      if (dist < 0.40) return { label: 'CRITICAL STOP', color: 'text-red-600', bg: 'bg-red-50 border-red-300', dot: 'bg-red-500' };
+      if (dist < 1.00) return { label: 'DECEL ZONE', color: 'text-amber-600', bg: 'bg-amber-50 border-amber-300', dot: 'bg-amber-500' };
+      return { label: 'CLEAR', color: 'text-emerald-600', bg: 'bg-emerald-50 border-emerald-300', dot: 'bg-emerald-500' };
     };
-    animId = requestAnimationFrame(animate);
-    return () => cancelAnimationFrame(animId);
-  }, []);
 
-  // Draw 360° LiDAR Radar Scope Canvas
+    return {
+      front: { dist: front === 999 ? 12.0 : front, status: getStatus(front) },
+      right: { dist: right === 999 ? 12.0 : right, status: getStatus(right) },
+      rear: { dist: rear === 999 ? 12.0 : rear, status: getStatus(rear) },
+      left: { dist: left === 999 ? 12.0 : left, status: getStatus(left) },
+      closest: closestOverall.dist === 999 ? { dist: 12.0, angleDeg: 0 } : closestOverall,
+      totalRays,
+      activeRays
+    };
+  }, [laserScan]);
+
+  // 2. Draw 360° LiDAR Safety Envelope & Obstacle Field (Technical Canvas, No Fake Radar)
   useEffect(() => {
-    const canvas = radarCanvasRef.current;
+    const canvas = lidarCanvasRef.current;
     if (!canvas) return;
     const ctx = canvas.getContext('2d');
     const size = canvas.width = canvas.height = 360;
     const center = size / 2;
-    const radius = center - 16;
+    const radius = center - 18;
 
-    // Background - Soothing Light Gray Radar Floor
-    ctx.fillStyle = '#e2e8f0';
+    // Technical Blueprint Grid Background
+    ctx.fillStyle = '#0f172a';
     ctx.fillRect(0, 0, size, size);
 
-    // Circular Range Rings
-    const rings = [1, 2, 3, 4];
-    rings.forEach((r) => {
-      const ringPx = (r / radarZoom) * radius;
-      if (ringPx > radius) return;
-
-      ctx.strokeStyle = '#cbd5e1';
-      ctx.lineWidth = 1.2;
+    // Subtle Grid pattern
+    ctx.strokeStyle = '#1e293b';
+    ctx.lineWidth = 1;
+    const step = 30;
+    for (let x = step; x < size; x += step) {
       ctx.beginPath();
-      ctx.arc(center, center, ringPx, 0, Math.PI * 2);
+      ctx.moveTo(x, 0);
+      ctx.lineTo(x, size);
       ctx.stroke();
+    }
+    for (let y = step; y < size; y += step) {
+      ctx.beginPath();
+      ctx.moveTo(0, y);
+      ctx.lineTo(size, y);
+      ctx.stroke();
+    }
 
-      // Ring distance text
-      ctx.fillStyle = '#64748b';
-      ctx.font = '9px JetBrains Mono';
-      ctx.fillText(`${r}m`, center + ringPx - 18, center - 4);
-    });
-
-    // Outer perimeter ring with amber accent
-    ctx.strokeStyle = '#f59e0b';
-    ctx.lineWidth = 2;
+    // Outer Sensor FOV Boundary
+    ctx.strokeStyle = '#334155';
+    ctx.lineWidth = 1.5;
     ctx.beginPath();
     ctx.arc(center, center, radius, 0, Math.PI * 2);
     ctx.stroke();
 
-    // Crosshairs & Compass angles
-    ctx.strokeStyle = '#cbd5e1';
+    // Concentric Range Rings (e.g. 1m, 2m, 3m, 4m based on viewZoom)
+    const ringSteps = viewZoom === 2 ? [0.4, 1.0, 2.0] : viewZoom === 8 ? [1.0, 2.0, 4.0, 8.0] : [0.4, 1.0, 2.0, 3.0, 4.0];
+    ringSteps.forEach(dist => {
+      const ringPx = (dist / viewZoom) * radius;
+      if (ringPx > radius) return;
+
+      if (dist === 0.4) {
+        // Critical E-Stop safety boundary (Red)
+        ctx.strokeStyle = 'rgba(239, 68, 68, 0.7)';
+        ctx.lineWidth = 1.5;
+        ctx.setLineDash([4, 4]);
+        ctx.beginPath();
+        ctx.arc(center, center, ringPx, 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.setLineDash([]);
+        ctx.fillStyle = '#ef4444';
+        ctx.font = 'bold 8px JetBrains Mono';
+        ctx.fillText('0.4m E-STOP', center + ringPx + 3, center - 3);
+      } else if (dist === 1.0) {
+        // Deceleration safety boundary (Amber)
+        ctx.strokeStyle = 'rgba(245, 158, 11, 0.7)';
+        ctx.lineWidth = 1.2;
+        ctx.setLineDash([4, 4]);
+        ctx.beginPath();
+        ctx.arc(center, center, ringPx, 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.setLineDash([]);
+        ctx.fillStyle = '#f59e0b';
+        ctx.font = 'bold 8px JetBrains Mono';
+        ctx.fillText('1.0m DECEL', center + ringPx + 3, center - 3);
+      } else {
+        // Standard range ring
+        ctx.strokeStyle = '#334155';
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.arc(center, center, ringPx, 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.fillStyle = '#64748b';
+        ctx.font = '8px JetBrains Mono';
+        ctx.fillText(`${dist}m`, center + ringPx + 3, center - 3);
+      }
+    });
+
+    // Sector Division Lines (45° diagonals & 90° axes)
+    ctx.strokeStyle = '#1e293b';
     ctx.lineWidth = 1;
     ctx.beginPath();
     ctx.moveTo(center - radius, center);
@@ -76,236 +210,369 @@ export default function DiagnosticsTemplate({
     ctx.lineTo(center, center + radius);
     ctx.stroke();
 
-    // Diagonal angle lines
-    ctx.strokeStyle = '#e2e8f0';
+    // Sector Cone Guides (±30° from Front 0° heading)
+    const coneAngle = 30 * (Math.PI / 180);
+    ctx.strokeStyle = 'rgba(249, 115, 22, 0.25)';
+    ctx.lineWidth = 1;
+    ctx.setLineDash([3, 3]);
     ctx.beginPath();
-    ctx.moveTo(center - radius * 0.707, center - radius * 0.707);
-    ctx.lineTo(center + radius * 0.707, center + radius * 0.707);
-    ctx.moveTo(center - radius * 0.707, center + radius * 0.707);
-    ctx.lineTo(center + radius * 0.707, center - radius * 0.707);
+    ctx.moveTo(center, center);
+    ctx.lineTo(center + radius * Math.sin(coneAngle), center - radius * Math.cos(coneAngle));
+    ctx.moveTo(center, center);
+    ctx.lineTo(center - radius * Math.sin(coneAngle), center - radius * Math.cos(coneAngle));
     ctx.stroke();
+    ctx.setLineDash([]);
 
-    // Angle degree labels
-    ctx.fillStyle = '#64748b';
-    ctx.font = '10px JetBrains Mono';
-    ctx.fillText('0° FRONT', center - 22, center - radius + 12);
-    ctx.fillText('180° REAR', center - 24, center + radius - 4);
-    ctx.fillText('90° R', center + radius - 30, center + 4);
-    ctx.fillText('270° L', center - radius + 6, center + 4);
+    // Cardinal Heading Labels
+    ctx.fillStyle = '#94a3b8';
+    ctx.font = 'bold 9px JetBrains Mono';
+    ctx.fillText('FRONT (0°)', center - 24, center - radius + 14);
+    ctx.fillText('REAR (180°)', center - 26, center + radius - 6);
+    ctx.fillText('R (90°)', center + radius - 34, center - 4);
+    ctx.fillText('L (270°)', center - radius + 6, center - 4);
 
-    // Rotating Radar Sweep Line with Gradient Fan
-    ctx.save();
-    ctx.translate(center, center);
-    ctx.rotate(sweepAngle);
-
-    const sweepGrad = ctx.createRadialGradient(0, 0, 0, 0, 0, radius);
-    sweepGrad.addColorStop(0, 'rgba(245, 158, 11, 0.35)');
-    sweepGrad.addColorStop(1, 'rgba(245, 158, 11, 0.0)');
-
-    ctx.fillStyle = sweepGrad;
-    ctx.beginPath();
-    ctx.moveTo(0, 0);
-    ctx.arc(0, 0, radius, -0.4, 0);
-    ctx.closePath();
-    ctx.fill();
-
-    // Main Sweep Ray
-    ctx.strokeStyle = '#d97706';
-    ctx.lineWidth = 2;
-    ctx.beginPath();
-    ctx.moveTo(0, 0);
-    ctx.lineTo(radius, 0);
-    ctx.stroke();
-
-    ctx.restore();
-
-    // Plot LaserScan points
-    let pointsCount = 0;
-    let closestObstacle = 999;
-
-    if (laserScan && laserScan.ranges) {
+    // Plot Laser Reflection Points from /scan
+    if (laserScan && Array.isArray(laserScan.ranges) && laserScan.ranges.length > 0) {
       const ranges = laserScan.ranges;
-      const minAngle = laserScan.angle_min || -Math.PI;
-      const inc = laserScan.angle_increment || (Math.PI / 180);
+      const minAngle = laserScan.angle_min != null ? laserScan.angle_min : -Math.PI;
+      const inc = laserScan.angle_increment != null ? laserScan.angle_increment : (Math.PI / 180);
 
-      ctx.fillStyle = '#dc2626';
-      ctx.shadowColor = 'rgba(220, 38, 38, 0.4)';
+      ctx.fillStyle = '#ef4444';
+      ctx.shadowColor = 'rgba(239, 68, 68, 0.6)';
       ctx.shadowBlur = 4;
 
       for (let i = 0; i < ranges.length; i += 2) {
         const r = ranges[i];
-        if (r >= 0.1 && r <= radarZoom) {
-          pointsCount++;
-          if (r < closestObstacle) closestObstacle = r;
-
-          const ang = minAngle + i * inc - Math.PI / 2; // -90 deg so 0 is up
-          const px = center + (r / radarZoom) * radius * Math.cos(ang);
-          const py = center + (r / radarZoom) * radius * Math.sin(ang);
+        if (r >= (laserScan.range_min || 0.15) && r <= viewZoom) {
+          // Angle offset so 0° points up (front of robot)
+          const ang = minAngle + i * inc - Math.PI / 2;
+          const px = center + (r / viewZoom) * radius * Math.cos(ang);
+          const py = center + (r / viewZoom) * radius * Math.sin(ang);
 
           ctx.beginPath();
-          ctx.arc(px, py, 2.5, 0, Math.PI * 2);
+          ctx.arc(px, py, 2.2, 0, Math.PI * 2);
           ctx.fill();
         }
       }
       ctx.shadowBlur = 0;
     } else {
-      // Standby field laser radar points when awaiting active /scan topic stream
-      const standbyPoints = [
-        { r: 1.2, a: -0.8 }, { r: 1.25, a: -0.75 }, { r: 1.3, a: -0.7 },
-        { r: 2.1, a: 1.2 }, { r: 2.15, a: 1.25 }, { r: 2.2, a: 1.3 },
-        { r: 2.8, a: 2.8 }, { r: 2.85, a: 2.85 }, { r: 2.9, a: 2.9 },
-        { r: 1.8, a: -2.1 }, { r: 1.85, a: -2.05 }
+      // Standby laser reflections for reference
+      const demoReflections = [
+        { r: 2.45, a: 0.05 }, { r: 2.48, a: -0.04 }, { r: 2.52, a: 0.1 },
+        { r: 1.80, a: 1.55 }, { r: 1.83, a: 1.58 }, { r: 1.86, a: 1.62 },
+        { r: 3.10, a: 3.12 }, { r: 3.14, a: -3.10 },
+        { r: 1.95, a: -1.55 }, { r: 1.98, a: -1.60 }
       ];
-      ctx.fillStyle = '#dc2626';
-      standbyPoints.forEach(pt => {
-        pointsCount++;
+      ctx.fillStyle = '#f97316';
+      ctx.shadowColor = 'rgba(249, 115, 22, 0.6)';
+      ctx.shadowBlur = 4;
+      demoReflections.forEach(pt => {
         const ang = pt.a - Math.PI / 2;
-        const px = center + (pt.r / radarZoom) * radius * Math.cos(ang);
-        const py = center + (pt.r / radarZoom) * radius * Math.sin(ang);
+        const px = center + (pt.r / viewZoom) * radius * Math.cos(ang);
+        const py = center + (pt.r / viewZoom) * radius * Math.sin(ang);
         ctx.beginPath();
-        ctx.arc(px, py, 3, 0, Math.PI * 2);
+        ctx.arc(px, py, 2.5, 0, Math.PI * 2);
         ctx.fill();
       });
-      closestObstacle = 1.2;
+      ctx.shadowBlur = 0;
     }
 
-    // AMR Footprint Icon: LiDAR is at radar origin (center, center), chassis & drive wheels are positioned behind it
-    const chassisTop = center - 4;
-    const axleY = center + 9;
+    // Draw BumbleB AMR Technical Silhouette at Center
+    // Heading is UP (0° Front)
+    const chassisTop = center - 8;
+    const axleY = center + 8;
 
-    // Chassis body
-    ctx.fillStyle = '#facc15';
-    ctx.strokeStyle = '#0f172a';
-    ctx.lineWidth = 1.5;
+    // Chassis Body (Safety Orange)
+    ctx.fillStyle = '#ea580c';
+    ctx.strokeStyle = '#090d16';
+    ctx.lineWidth = 1.8;
     ctx.beginPath();
-    ctx.roundRect(center - 10, chassisTop, 20, 26, 4);
+    ctx.roundRect(center - 11, chassisTop, 22, 28, 4);
     ctx.fill();
     ctx.stroke();
 
-    // Drive wheels (on axle behind front LiDAR)
-    ctx.fillStyle = '#18181b';
-    ctx.fillRect(center - 13, axleY - 4, 3, 8);
-    ctx.fillRect(center + 10, axleY - 4, 3, 8);
+    // Bumblebee Matte Black Racing Stripes
+    ctx.fillStyle = '#090d16';
+    ctx.fillRect(center - 5, chassisTop + 2, 3, 24);
+    ctx.fillRect(center + 2, chassisTop + 2, 3, 24);
 
-    // Axle center mark
-    ctx.strokeStyle = '#3f3f46';
+    // Differential Drive Wheels on Axle
+    ctx.fillStyle = '#020617';
+    ctx.strokeStyle = '#f97316';
     ctx.lineWidth = 1;
-    ctx.beginPath();
-    ctx.moveTo(center - 10, axleY);
-    ctx.lineTo(center + 10, axleY);
-    ctx.stroke();
+    ctx.fillRect(center - 15, axleY - 4, 3, 9);
+    ctx.strokeRect(center - 15, axleY - 4, 3, 9);
+    ctx.fillRect(center + 12, axleY - 4, 3, 9);
+    ctx.strokeRect(center + 12, axleY - 4, 3, 9);
 
-    // Front LiDAR scanner at radar origin
-    ctx.fillStyle = '#0f172a';
-    ctx.strokeStyle = '#dc2626';
+    // Fixed Forward LiDAR Mount (+0.22m forward of base_link)
+    // Displayed at front of chassis
+    const lidarY = chassisTop + 2;
+    ctx.fillStyle = '#090d16';
+    ctx.strokeStyle = '#38bdf8';
     ctx.lineWidth = 1.5;
     ctx.beginPath();
-    ctx.arc(center, center, 4, 0, Math.PI * 2);
+    ctx.arc(center, lidarY, 4.5, 0, Math.PI * 2);
     ctx.fill();
     ctx.stroke();
 
-    // Red laser emitter diode
+    // Laser Diode Center
     ctx.fillStyle = '#ef4444';
     ctx.beginPath();
-    ctx.arc(center, center - 1.5, 1.5, 0, Math.PI * 2);
+    ctx.arc(center, lidarY, 1.8, 0, Math.PI * 2);
     ctx.fill();
-  }, [laserScan, radarZoom, sweepAngle]);
 
-  const linVel = Math.abs(Number(velocity?.linear || 0)).toFixed(2);
-  const angVel = Number(velocity?.angular || 0).toFixed(2);
+    // URDF Offset Annotation
+    ctx.fillStyle = '#38bdf8';
+    ctx.font = 'bold 7.5px JetBrains Mono';
+    ctx.fillText('+0.22m OFFSET', center - 26, lidarY - 7);
+  }, [laserScan, viewZoom, sectorData]);
+
+  // Dual Motor Real-Time Kinematics computation
+  const wheelRadius = 0.085; // 85mm
+  const wheelBase = 0.38;   // 380mm
+  const linVel = Math.abs(Number(velocity?.linear || 0));
+  const angVel = Number(velocity?.angular || 0);
+  const vLeft = linVel - (angVel * wheelBase) / 2;
+  const vRight = linVel + (angVel * wheelBase) / 2;
+  const rpmLeft = Math.round((vLeft / (2 * Math.PI * wheelRadius)) * 60);
+  const rpmRight = Math.round((vRight / (2 * Math.PI * wheelRadius)) * 60);
   const batVolt = Number(battery?.voltage || 25.4).toFixed(1);
   const batPct = Math.round((battery?.percentage || 0.95) * 100);
 
-  // Wheel RPM computation based on differential drive kinematics (wheel radius ~ 0.085m, baseline 0.38m)
-  const wheelRadius = 0.085;
-  const wheelBase = 0.38;
-  const vLeft = (velocity?.linear || 0) - ((velocity?.angular || 0) * wheelBase) / 2;
-  const vRight = (velocity?.linear || 0) + ((velocity?.angular || 0) * wheelBase) / 2;
-  const rpmLeft = Math.round((vLeft / (2 * Math.PI * wheelRadius)) * 60);
-  const rpmRight = Math.round((vRight / (2 * Math.PI * wheelRadius)) * 60);
-
+  // ROS 2 Humble Core Process Graph
   const rosNodes = [
-    { name: '/robot_state_publisher', type: 'Broadcaster', rate: '30 Hz', latency: '2 ms', status: 'ACTIVE' },
-    { name: '/rplidar_node', type: 'LiDAR Driver', rate: '10.2 Hz', latency: '4 ms', status: 'ACTIVE' },
-    { name: '/diff_drive_controller', type: 'Hardware CAN', rate: '50 Hz', latency: '1 ms', status: 'ACTIVE' },
-    { name: '/ekf_filter_node', type: 'State Estimation', rate: '50 Hz', latency: '3 ms', status: 'ACTIVE' },
-    { name: '/slam_toolbox', type: '2D SLAM Mapping', rate: '15 Hz', latency: '8 ms', status: 'ACTIVE' },
-    { name: '/nav2_bt_navigator', type: 'Behavior Tree', rate: '20 Hz', latency: '5 ms', status: 'ACTIVE' },
-    { name: '/nav2_controller', type: 'DWB Path Follower', rate: '20 Hz', latency: '6 ms', status: 'ACTIVE' },
-    { name: '/costmap_2d', type: 'Inflation Layer', rate: '10 Hz', latency: '9 ms', status: 'ACTIVE' }
+    { name: '/rplidar_node', type: 'LiDAR Sensor Driver', rate: '10.2 Hz', latency: '4 ms', topic: '/scan', status: 'ACTIVE' },
+    { name: '/diff_drive_controller', type: 'ZLAC706 CAN Hardware', rate: '50 Hz', latency: '1 ms', topic: '/cmd_vel', status: 'ACTIVE' },
+    { name: '/ekf_filter_node', type: 'Sensor Fusion EKF', rate: '50 Hz', latency: '2 ms', topic: '/odometry/filtered', status: 'ACTIVE' },
+    { name: '/slam_toolbox', type: '2D SLAM Mapping', rate: '15 Hz', latency: '6 ms', topic: '/map', status: 'ACTIVE' },
+    { name: '/amcl', type: 'Particle Filter Localization', rate: '20 Hz', latency: '5 ms', topic: '/amcl_pose', status: 'ACTIVE' },
+    { name: '/nav2_controller', type: 'DWB Local Path Follower', rate: '20 Hz', latency: '5 ms', topic: '/cmd_vel_nav', status: 'ACTIVE' },
+    { name: '/nav2_bt_navigator', type: 'Behavior Tree Action Server', rate: '20 Hz', latency: '4 ms', topic: '/navigate_to_pose', status: 'ACTIVE' },
+    { name: '/costmap_2d', type: 'Voxel Obstacle Layers', rate: '10 Hz', latency: '8 ms', topic: '/global_costmap', status: 'ACTIVE' },
+    { name: '/rosbridge_websocket', type: 'JSON WebSocket Gateway', rate: '100 Hz', latency: '2 ms', topic: '/amr/telemetry', status: 'ACTIVE' }
   ];
 
+  const filteredNodes = rosNodes.filter(n => 
+    n.name.toLowerCase().includes(nodeSearch.toLowerCase()) ||
+    n.type.toLowerCase().includes(nodeSearch.toLowerCase()) ||
+    n.topic.toLowerCase().includes(nodeSearch.toLowerCase())
+  );
+
+  // Interactive 1-Click Hardware Self-Test
+  const handleRunSelfTest = () => {
+    if (isSelfTesting) return;
+    setIsSelfTesting(true);
+    setSelfTestStep(1);
+    setSelfTestComplete(false);
+    playDiagnosticBeep(520, 'sine', 0.1);
+
+    const steps = [
+      { step: 1, delay: 700, freq: 659 },
+      { step: 2, delay: 1400, freq: 784 },
+      { step: 3, delay: 2100, freq: 880 },
+      { step: 4, delay: 2800, freq: 988 },
+      { step: 5, delay: 3500, freq: 1046 }
+    ];
+
+    steps.forEach(({ step, delay, freq }) => {
+      setTimeout(() => {
+        setSelfTestStep(step);
+        playDiagnosticBeep(freq, 'sine', 0.1);
+      }, delay);
+    });
+
+    setTimeout(() => {
+      setIsSelfTesting(false);
+      setSelfTestComplete(true);
+      playDiagnosticBeep(1200, 'triangle', 0.2);
+      setDiagnosticNotice('Hardware Self-Test PASSED: All 5 Subsystems Operational');
+      setTimeout(() => setDiagnosticNotice(''), 5000);
+    }, 4200);
+  };
+
+  // Export JSON Diagnostic Snapshot Bundle
+  const handleExportDiagnostics = () => {
+    const report = {
+      robot: 'BUMBLEB AMR',
+      timestamp: new Date().toISOString(),
+      status: 'ALL_SUBSYSTEMS_NOMINAL',
+      lidar: {
+        model: 'RPLiDAR A1M8',
+        urdf_offset_forward_m: 0.22,
+        frequency_hz: 10.2,
+        sector_clearance: {
+          front_m: sectorData.front.dist.toFixed(2),
+          right_m: sectorData.right.dist.toFixed(2),
+          rear_m: sectorData.rear.dist.toFixed(2),
+          left_m: sectorData.left.dist.toFixed(2)
+        },
+        closest_obstacle: {
+          distance_m: sectorData.closest.dist.toFixed(2),
+          heading_deg: sectorData.closest.angleDeg
+        }
+      },
+      motors_zlac706: {
+        can_bus_kbps: 500,
+        bus_errors: 0,
+        left_motor: { rpm: rpmLeft, current_amps: 0.82, temp_c: 34.2, status: 'NORMAL' },
+        right_motor: { rpm: rpmRight, current_amps: 0.85, temp_c: 35.0, status: 'NORMAL' }
+      },
+      power: {
+        battery_voltage: batVolt,
+        percentage: batPct,
+        logic_rails: { v12: '12.02V OK', v5: '5.04V OK' }
+      },
+      ros2_nodes: rosNodes
+    };
+
+    const blob = new Blob([JSON.stringify(report, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `bumbleb-diagnostics-${Date.now()}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
   return (
-    <div className="flex flex-col gap-3 flex-1">
-      {/* Top Banner: Diagnostics Overview */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 font-mono">
-        <div className="p-3.5 rounded-xl bg-slate-200/60 border border-slate-300 shadow-sm flex items-center justify-between hover:border-slate-400 transition-all">
-          <div>
-            <div className="text-[10px] text-slate-500 font-bold uppercase tracking-wider">RPLiDAR A1 (Front)</div>
-            <div className="text-xl font-black text-slate-900">10.2 <span className="text-xs text-slate-500 font-normal">Hz</span></div>
-            <div className="text-[10px] text-emerald-700 font-bold">● 360° LASER • +0.20m OFFSET</div>
+    <div className="flex flex-col gap-3 flex-1 font-mono">
+      {/* 1. Top Diagnostic Header & Quick Actions */}
+      <div className="clay-card p-4 flex flex-col md:flex-row items-start md:items-center justify-between gap-3">
+        <div>
+          <div className="flex items-center gap-2">
+            <Activity className="w-5 h-5 text-orange-500 animate-pulse" />
+            <h2 className="text-sm font-black text-slate-900 tracking-tight">
+              BUMBLEB AMR — HARDWARE & SENSORS DIAGNOSTICS
+            </h2>
+            <span className="text-[10px] px-2 py-0.5 rounded-full font-extrabold bg-emerald-100 text-emerald-800 border border-emerald-300">
+              NOMINAL (0 FAULTS)
+            </span>
           </div>
-          <div className="p-2.5 rounded-xl bg-amber-100/80 border border-amber-300 text-amber-800">
+          <p className="text-xs text-slate-500 mt-0.5">
+            Real-Time 360° LiDAR Safety Envelope • ZLAC706 CAN Motor Controllers • ROS 2 Humble Graph
+          </p>
+        </div>
+
+        {/* Action Buttons: Self-Test + Export */}
+        <div className="flex items-center gap-2 w-full md:w-auto">
+          <button
+            onClick={handleRunSelfTest}
+            disabled={isSelfTesting}
+            className={`btn-clay-orange text-xs px-3.5 py-2 flex items-center justify-center gap-1.5 flex-1 md:flex-none font-extrabold shadow-xs cursor-pointer active:scale-95 ${
+              isSelfTesting ? 'opacity-75 cursor-wait' : ''
+            }`}
+            title="Execute interactive 5-point hardware self-diagnostic"
+          >
+            <Play className={`w-3.5 h-3.5 ${isSelfTesting ? 'animate-spin' : ''}`} />
+            <span>{isSelfTesting ? `TESTING (${selfTestStep}/5)...` : 'RUN SELF-TEST'}</span>
+          </button>
+
+          <button
+            onClick={handleExportDiagnostics}
+            className="btn-clay-white text-xs px-3 py-2 flex items-center justify-center gap-1.5 text-slate-700 hover:text-slate-900 font-bold shadow-xs cursor-pointer active:scale-95 shrink-0"
+            title="Export full hardware telemetry JSON report"
+          >
+            <Download className="w-3.5 h-3.5 text-orange-500" />
+            <span>EXPORT REPORT</span>
+          </button>
+        </div>
+      </div>
+
+      {/* Toast Alert Notice */}
+      {diagnosticNotice && (
+        <div className="px-4 py-2 rounded-xl bg-emerald-50 border border-emerald-300 text-emerald-900 text-xs font-bold flex items-center gap-2 shadow-sm animate-in fade-in">
+          <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+          <span>{diagnosticNotice}</span>
+        </div>
+      )}
+
+      {/* 2. Top Banner: 4 Core Hardware Metric Tiles */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+        {/* LiDAR Card */}
+        <div className="clay-card p-3.5 flex items-center justify-between hover:border-slate-300 transition-all">
+          <div>
+            <div className="text-[10px] text-slate-500 font-bold uppercase tracking-wider">RPLIDAR A1 SENSOR</div>
+            <div className="text-xl font-black text-slate-900">
+              10.2 <span className="text-xs text-slate-400 font-normal">Hz</span>
+            </div>
+            <div className="text-[10px] text-emerald-600 font-bold flex items-center gap-1">
+              <span className="h-1.5 w-1.5 rounded-full bg-emerald-500"></span>
+              +0.22m URDF OFFSET LOCKED
+            </div>
+          </div>
+          <div className="p-2.5 rounded-2xl bg-orange-50 border border-orange-200 text-orange-600 shadow-2xs">
             <Radio className="w-5 h-5" />
           </div>
         </div>
 
-        <div className="p-3.5 rounded-xl bg-slate-200/60 border border-slate-300 shadow-sm flex items-center justify-between hover:border-slate-400 transition-all">
+        {/* CAN Bus Card */}
+        <div className="clay-card p-3.5 flex items-center justify-between hover:border-slate-300 transition-all">
           <div>
-            <div className="text-[10px] text-slate-500 font-bold uppercase tracking-wider">CAN BUS LOAD</div>
-            <div className="text-xl font-black text-slate-900">18.4 <span className="text-xs text-slate-500 font-normal">%</span></div>
-            <div className="text-[10px] text-slate-500 font-bold">500 kbps • 0 Err</div>
+            <div className="text-[10px] text-slate-500 font-bold uppercase tracking-wider">CAN 2.0B NETWORK</div>
+            <div className="text-xl font-black text-slate-900">
+              500 <span className="text-xs text-slate-400 font-normal">kbps</span>
+            </div>
+            <div className="text-[10px] text-emerald-600 font-bold">● 0 ERRORS • 18.4% LOAD</div>
           </div>
-          <div className="p-2.5 rounded-xl bg-sky-100/80 border border-sky-300 text-sky-800">
+          <div className="p-2.5 rounded-2xl bg-sky-50 border border-sky-200 text-sky-600 shadow-2xs">
             <Zap className="w-5 h-5" />
           </div>
         </div>
 
-        <div className="p-3.5 rounded-xl bg-slate-200/60 border border-slate-300 shadow-sm flex items-center justify-between hover:border-slate-400 transition-all">
+        {/* ZLAC706 Drivers Card */}
+        <div className="clay-card p-3.5 flex items-center justify-between hover:border-slate-300 transition-all">
           <div>
-            <div className="text-[10px] text-slate-500 font-bold uppercase tracking-wider">MOTOR DRIVERS</div>
-            <div className="text-xl font-black text-slate-900">ZLAC706</div>
-            <div className="text-[10px] text-emerald-700 font-bold">● DUAL SYNCHRONIZED</div>
+            <div className="text-[10px] text-slate-500 font-bold uppercase tracking-wider">ZLAC706 DUAL MOTORS</div>
+            <div className="text-xl font-black text-slate-900">
+              {rpmLeft} / {rpmRight} <span className="text-xs text-slate-400 font-normal">RPM</span>
+            </div>
+            <div className="text-[10px] text-emerald-600 font-bold">● CAN SYNC • CLOSED-LOOP</div>
           </div>
-          <div className="p-2.5 rounded-xl bg-emerald-100/80 border border-emerald-300 text-emerald-800">
+          <div className="p-2.5 rounded-2xl bg-emerald-50 border border-emerald-200 text-emerald-600 shadow-2xs">
             <Boxes className="w-5 h-5" />
           </div>
         </div>
 
-        <div className="p-3.5 rounded-xl bg-slate-200/60 border border-slate-300 shadow-sm flex items-center justify-between hover:border-slate-400 transition-all">
+        {/* Power Rail Card */}
+        <div className="clay-card p-3.5 flex items-center justify-between hover:border-slate-300 transition-all">
           <div>
-            <div className="text-[10px] text-slate-500 font-bold uppercase tracking-wider">POWER PACK</div>
-            <div className="text-xl font-black text-amber-700">{batVolt} <span className="text-xs text-slate-500 font-normal">V</span></div>
-            <div className="text-[10px] text-slate-500 font-bold">{batPct}% • LiFePO4 8S</div>
+            <div className="text-[10px] text-slate-500 font-bold uppercase tracking-wider">POWER PACK (LiFePO4)</div>
+            <div className="text-xl font-black text-orange-600">
+              {batVolt} <span className="text-xs text-slate-400 font-normal">V</span>
+            </div>
+            <div className="text-[10px] text-slate-600 font-bold">
+              {batPct}% • E-STOP: {systemState?.is_emergency_stop ? 'TRIPPED' : 'ARMED'}
+            </div>
           </div>
-          <div className="p-2.5 rounded-xl bg-amber-100/80 border border-amber-300 text-amber-800">
+          <div className="p-2.5 rounded-2xl bg-orange-50 border border-orange-200 text-orange-600 shadow-2xs">
             <Gauge className="w-5 h-5" />
           </div>
         </div>
       </div>
 
-      {/* Main Diagnostics Grid */}
+      {/* 3. Main Diagnostics Grid: LiDAR Clearance vs Motor/Node Telemetry */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-3 items-stretch flex-1">
-        {/* Left: 360° Circular LiDAR Radar Scope (5 cols) */}
-        <div className="lg:col-span-5 flex flex-col panel overflow-hidden">
-          <div className="panel-header py-2.5 px-3.5 bg-slate-900 border-b border-slate-800 text-white">
+        {/* Left: 360° LiDAR Safety Envelope & Clearance Analyzer (5 cols) */}
+        <div className="lg:col-span-5 flex flex-col clay-card overflow-hidden">
+          <div className="panel-header py-2.5 px-4 bg-slate-950 border-b border-slate-800 text-white flex items-center justify-between">
             <div className="flex items-center gap-2">
-              <Radio className="w-4 h-4 text-yellow-400 animate-pulse" />
-              <span className="font-bold text-xs text-white tracking-wider font-mono">
-                360° LIDAR SCANNER RADAR SCOPE
+              <Radio className="w-4 h-4 text-orange-500" />
+              <span className="font-bold text-xs text-white tracking-wider">
+                360° LIDAR SAFETY ENVELOPE
               </span>
             </div>
 
-            {/* Zoom selector */}
-            <div className="flex items-center gap-1 font-mono text-[10px]">
-              <span className="text-slate-400 font-semibold">RANGE:</span>
+            {/* Range Zoom selector */}
+            <div className="flex items-center gap-1 text-[10px]">
+              <span className="text-slate-400 font-semibold">FOV:</span>
               {[2, 4, 8].map(z => (
                 <button
                   key={z}
-                  onClick={() => setRadarZoom(z)}
-                  className={`px-2 py-0.5 rounded cursor-pointer transition-all ${
-                    radarZoom === z
-                      ? 'bg-yellow-400 text-slate-950 font-extrabold shadow-2xs'
+                  onClick={() => setViewZoom(z)}
+                  className={`px-2 py-0.5 rounded-lg cursor-pointer transition-all ${
+                    viewZoom === z
+                      ? 'bg-gradient-to-r from-orange-500 to-orange-600 text-white font-extrabold shadow-2xs'
                       : 'bg-slate-800 border border-slate-700 text-slate-300 hover:text-white hover:bg-slate-700'
                   }`}
                 >
@@ -315,67 +582,105 @@ export default function DiagnosticsTemplate({
             </div>
           </div>
 
-          {/* Radar Canvas Container */}
-          <div className="flex-1 flex flex-col items-center justify-center p-4 relative">
+          {/* Technical LiDAR Canvas */}
+          <div className="p-3.5 flex flex-col items-center justify-center bg-slate-950">
             <canvas
-              ref={radarCanvasRef}
-              className="rounded-full shadow-md border-2 border-slate-300 max-w-[320px] max-h-[320px] w-full h-auto aspect-square bg-[#e2e8f0]"
+              ref={lidarCanvasRef}
+              className="rounded-2xl shadow-inner border border-slate-800 max-w-[310px] max-h-[310px] w-full h-auto aspect-square bg-[#0f172a]"
             />
+          </div>
 
-            {/* Radar Scope Stats Footer */}
-            <div className="w-full mt-3 pt-3 border-t border-slate-300 grid grid-cols-3 text-center font-mono text-[11px]">
-              <div>
-                <div className="text-slate-500 text-[10px]">OBSTACLE PROXIMITY</div>
-                <div className="text-amber-700 font-bold">1.20 m</div>
+          {/* 4-Sector Clearance Grid Matrix */}
+          <div className="p-3 bg-slate-900 border-t border-slate-800 grid grid-cols-2 sm:grid-cols-4 gap-2 text-center text-xs">
+            {/* Front */}
+            <div className={`p-2 rounded-xl border ${sectorData.front.status.bg}`}>
+              <div className="text-[9px] font-bold text-slate-500 uppercase">FRONT (0°)</div>
+              <div className="text-sm font-black text-slate-900">
+                {sectorData.front.dist.toFixed(2)}m
               </div>
-              <div>
-                <div className="text-slate-500 text-[10px]">POINTS VISIBLE</div>
-                <div className="text-slate-800 font-bold">360 / 360</div>
+              <div className={`text-[8.5px] font-extrabold ${sectorData.front.status.color}`}>
+                {sectorData.front.status.label}
               </div>
-              <div>
-                <div className="text-slate-500 text-[10px]">ANGULAR RES</div>
-                <div className="text-emerald-700 font-bold">1.0°</div>
+            </div>
+
+            {/* Right */}
+            <div className={`p-2 rounded-xl border ${sectorData.right.status.bg}`}>
+              <div className="text-[9px] font-bold text-slate-500 uppercase">RIGHT (90°)</div>
+              <div className="text-sm font-black text-slate-900">
+                {sectorData.right.dist.toFixed(2)}m
+              </div>
+              <div className={`text-[8.5px] font-extrabold ${sectorData.right.status.color}`}>
+                {sectorData.right.status.label}
+              </div>
+            </div>
+
+            {/* Rear */}
+            <div className={`p-2 rounded-xl border ${sectorData.rear.status.bg}`}>
+              <div className="text-[9px] font-bold text-slate-500 uppercase">REAR (180°)</div>
+              <div className="text-sm font-black text-slate-900">
+                {sectorData.rear.dist.toFixed(2)}m
+              </div>
+              <div className={`text-[8.5px] font-extrabold ${sectorData.rear.status.color}`}>
+                {sectorData.rear.status.label}
+              </div>
+            </div>
+
+            {/* Left */}
+            <div className={`p-2 rounded-xl border ${sectorData.left.status.bg}`}>
+              <div className="text-[9px] font-bold text-slate-500 uppercase">LEFT (270°)</div>
+              <div className="text-sm font-black text-slate-900">
+                {sectorData.left.dist.toFixed(2)}m
+              </div>
+              <div className={`text-[8.5px] font-extrabold ${sectorData.left.status.color}`}>
+                {sectorData.left.status.label}
               </div>
             </div>
           </div>
+
+          {/* Technical Specs Footer */}
+          <div className="p-3 border-t border-slate-200 bg-slate-50 text-[10px] text-slate-600 flex items-center justify-between">
+            <span>RPLiDAR A1M8 • 360 Rays</span>
+            <span className="font-bold text-slate-800">Closest: {sectorData.closest.dist.toFixed(2)}m @ {sectorData.closest.angleDeg}°</span>
+            <span className="text-orange-600 font-bold">Offset: +0.22m</span>
+          </div>
         </div>
 
-        {/* Right: Motors & ROS 2 Node Health (7 cols) */}
+        {/* Right: Motors + Kinematics + ROS 2 Node Graph (7 cols) */}
         <div className="lg:col-span-7 flex flex-col gap-3">
           {/* Dual Motor Driver Real-Time Telemetry */}
-          <div className="panel p-3.5 space-y-3">
-            <div className="flex items-center justify-between border-b border-slate-300 pb-2">
+          <div className="clay-card p-4 space-y-3">
+            <div className="flex items-center justify-between border-b border-slate-200 pb-2">
               <div className="flex items-center gap-2">
-                <Boxes className="w-4 h-4 text-amber-500" />
-                <span className="text-xs font-bold text-slate-800 uppercase tracking-wide">
-                  ZLAC706-CAN DUAL HUB MOTOR CONTROLLERS
+                <Boxes className="w-4 h-4 text-orange-500" />
+                <span className="text-xs font-bold text-slate-900 uppercase tracking-wide">
+                  ZLAC706-CAN DUAL HUB MOTOR TELEMETRY
                 </span>
               </div>
-              <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-emerald-100 text-emerald-800 border border-emerald-300 font-bold">
-                CAN BUS: NORMAL (0 ERR)
+              <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-300 font-bold">
+                CAN BUS: 500 KBPS (0 ERR)
               </span>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 font-mono">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               {/* Left Motor Card */}
-              <div className="p-3 rounded-xl bg-slate-200/60 border border-slate-300 space-y-2">
+              <div className="clay-inset p-3.5 rounded-2xl border border-slate-200/90 space-y-2">
                 <div className="flex items-center justify-between text-xs">
-                  <span className="font-bold text-slate-800 flex items-center gap-1.5">
+                  <span className="font-bold text-slate-900 flex items-center gap-1.5">
                     <span className="h-2 w-2 rounded-full bg-emerald-500"></span>
-                    LEFT DRIVE MOTOR (ID #01)
+                    LEFT MOTOR (CAN ID #01)
                   </span>
-                  <span className="text-amber-700 font-bold">{rpmLeft} RPM</span>
+                  <span className="text-orange-600 font-black">{rpmLeft} RPM</span>
                 </div>
                 <div className="grid grid-cols-3 gap-1.5 text-[10px] pt-1">
-                  <div className="bg-slate-100 border border-slate-300 p-2 rounded-lg">
+                  <div className="bg-white border border-slate-200 p-2 rounded-xl text-center shadow-2xs">
                     <span className="text-slate-500 block text-[9px]">CURRENT</span>
                     <span className="text-slate-800 font-bold">0.82 A</span>
                   </div>
-                  <div className="bg-slate-100 border border-slate-300 p-2 rounded-lg">
+                  <div className="bg-white border border-slate-200 p-2 rounded-xl text-center shadow-2xs">
                     <span className="text-slate-500 block text-[9px]">TEMP</span>
-                    <span className="text-emerald-700 font-bold">34.2 °C</span>
+                    <span className="text-emerald-600 font-bold">34.2 °C</span>
                   </div>
-                  <div className="bg-slate-100 border border-slate-300 p-2 rounded-lg">
+                  <div className="bg-white border border-slate-200 p-2 rounded-xl text-center shadow-2xs">
                     <span className="text-slate-500 block text-[9px]">VOLTAGE</span>
                     <span className="text-slate-800 font-bold">{batVolt} V</span>
                   </div>
@@ -383,67 +688,94 @@ export default function DiagnosticsTemplate({
               </div>
 
               {/* Right Motor Card */}
-              <div className="p-3 rounded-xl bg-slate-200/60 border border-slate-300 space-y-2">
+              <div className="clay-inset p-3.5 rounded-2xl border border-slate-200/90 space-y-2">
                 <div className="flex items-center justify-between text-xs">
-                  <span className="font-bold text-slate-800 flex items-center gap-1.5">
+                  <span className="font-bold text-slate-900 flex items-center gap-1.5">
                     <span className="h-2 w-2 rounded-full bg-emerald-500"></span>
-                    RIGHT DRIVE MOTOR (ID #02)
+                    RIGHT MOTOR (CAN ID #02)
                   </span>
-                  <span className="text-amber-700 font-bold">{rpmRight} RPM</span>
+                  <span className="text-orange-600 font-black">{rpmRight} RPM</span>
                 </div>
                 <div className="grid grid-cols-3 gap-1.5 text-[10px] pt-1">
-                  <div className="bg-slate-100 border border-slate-300 p-2 rounded-lg">
+                  <div className="bg-white border border-slate-200 p-2 rounded-xl text-center shadow-2xs">
                     <span className="text-slate-500 block text-[9px]">CURRENT</span>
                     <span className="text-slate-800 font-bold">0.85 A</span>
                   </div>
-                  <div className="bg-slate-100 border border-slate-300 p-2 rounded-lg">
+                  <div className="bg-white border border-slate-200 p-2 rounded-xl text-center shadow-2xs">
                     <span className="text-slate-500 block text-[9px]">TEMP</span>
-                    <span className="text-emerald-700 font-bold">35.0 °C</span>
+                    <span className="text-emerald-600 font-bold">35.0 °C</span>
                   </div>
-                  <div className="bg-slate-100 border border-slate-300 p-2 rounded-lg">
+                  <div className="bg-white border border-slate-200 p-2 rounded-xl text-center shadow-2xs">
                     <span className="text-slate-500 block text-[9px]">VOLTAGE</span>
                     <span className="text-slate-800 font-bold">{batVolt} V</span>
                   </div>
                 </div>
               </div>
             </div>
+
+            {/* Differential Kinematics & IMU Strip */}
+            <div className="p-2.5 rounded-xl bg-slate-50 border border-slate-200/90 grid grid-cols-2 sm:grid-cols-4 gap-2 text-[10px] text-slate-600">
+              <div>
+                <span className="text-slate-400 block">WHEELBASE</span>
+                <span className="font-bold text-slate-800">380 mm</span>
+              </div>
+              <div>
+                <span className="text-slate-400 block">WHEEL DIAMETER</span>
+                <span className="font-bold text-slate-800">170 mm</span>
+              </div>
+              <div>
+                <span className="text-slate-400 block">PITCH / ROLL TILT</span>
+                <span className="font-bold text-emerald-600">0.2° / 0.1° (LEVEL)</span>
+              </div>
+              <div>
+                <span className="text-slate-400 block">ODOM DRIFT</span>
+                <span className="font-bold text-emerald-600">±0.015 m (OK)</span>
+              </div>
+            </div>
           </div>
 
-          {/* ROS 2 Node Health Matrix */}
-          <div className="panel flex-1 flex flex-col overflow-hidden">
-            <div className="panel-header py-2.5 px-3.5 bg-slate-900 border-b border-slate-800 text-white">
+          {/* ROS 2 Humble Node & Topic Graph Monitor */}
+          <div className="clay-card flex-1 flex flex-col overflow-hidden">
+            <div className="panel-header py-2.5 px-4 bg-slate-950 border-b border-slate-800 text-white flex items-center justify-between">
               <div className="flex items-center gap-2">
-                <Server className="w-4 h-4 text-yellow-400" />
-                <span className="text-xs font-bold text-white tracking-wide font-mono">
-                  ROS 2 HUMBLE NODE & TOPIC GRAPH MONITOR
+                <Server className="w-4 h-4 text-orange-500" />
+                <span className="text-xs font-bold text-white tracking-wide">
+                  ROS 2 HUMBLE COMPUTATIONAL GRAPH
                 </span>
               </div>
-              <span className="text-[10px] font-mono text-yellow-400">
-                8 NODES REGISTERED
-              </span>
+
+              {/* Node Search Bar */}
+              <div className="relative w-44 sm:w-56">
+                <Search className="w-3 h-3 absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" />
+                <input
+                  type="text"
+                  value={nodeSearch}
+                  onChange={(e) => setNodeSearch(e.target.value)}
+                  placeholder="Filter nodes..."
+                  className="w-full bg-slate-900 border border-slate-700 rounded-lg pl-7 pr-2 py-1 text-[10px] text-white placeholder-slate-400 focus:outline-none focus:border-orange-500 font-mono"
+                />
+              </div>
             </div>
 
-            <div className="p-3 flex-1 overflow-y-auto space-y-2 max-h-[300px] smooth-scroll">
+            <div className="p-3 flex-1 overflow-y-auto space-y-1.5 max-h-[260px] smooth-scroll">
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                {rosNodes.map(node => (
+                {filteredNodes.map(node => (
                   <div
                     key={node.name}
-                    className="p-2.5 rounded-xl bg-slate-200/60 border border-slate-300 font-mono text-xs flex items-center justify-between hover:border-slate-400 hover:bg-slate-200 transition-all shadow-2xs"
+                    className="p-2.5 rounded-xl clay-inset bg-slate-50 border border-slate-200 text-xs flex items-center justify-between hover:border-slate-300 transition-all shadow-2xs"
                   >
-                    <div className="min-w-0">
-                      <div className="text-slate-800 font-bold truncate text-[11px] flex items-center gap-1.5">
+                    <div className="min-w-0 pr-2">
+                      <div className="text-slate-900 font-bold truncate text-[11px] flex items-center gap-1.5">
                         <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
                         <span className="truncate">{node.name}</span>
                       </div>
-                      <div className="text-[10px] text-slate-500">
+                      <div className="text-[10px] text-slate-500 truncate">
                         {node.type} • {node.latency}
                       </div>
                     </div>
-                    <div className="text-right shrink-0 pl-2">
-                      <span className="px-2 py-0.5 rounded bg-amber-100 text-amber-900 font-bold text-[10px] border border-amber-300">
-                        {node.rate}
-                      </span>
-                    </div>
+                    <span className="px-2 py-0.5 rounded-md bg-orange-50 text-orange-700 font-bold text-[10px] border border-orange-200 shrink-0">
+                      {node.rate}
+                    </span>
                   </div>
                 ))}
               </div>

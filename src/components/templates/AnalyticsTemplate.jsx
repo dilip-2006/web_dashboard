@@ -14,7 +14,7 @@ export default function AnalyticsTemplate({
 }) {
   const [logs, setLogs] = useState(() => {
     const initialLogs = [
-      { id: 1, time: '22:15:02', level: 'INFO', category: 'SYSTEM', msg: 'BumbleB AMR boot sequence completed. Drivetrain state: READY.' },
+      { id: 1, time: '22:15:02', level: 'INFO', category: 'SYSTEM', msg: 'BUMBLEB AMR boot sequence completed. Drivetrain state: READY.' },
       { id: 2, time: '22:15:04', level: 'INFO', category: 'LIDAR', msg: 'RPLiDAR A1 initialized on /dev/rplidar. Sampling rate: 10.2 Hz.' },
       { id: 3, time: '22:15:05', level: 'INFO', category: 'CANBUS', msg: 'ZLAC706 CAN dual hub motor driver handshake verified (Node 1 & 2).' },
       { id: 4, time: '22:15:10', level: 'INFO', category: 'NAV2', msg: 'Map server loaded map: warehouse_main.yaml (resolution: 0.05m).' },
@@ -75,51 +75,51 @@ export default function AnalyticsTemplate({
 
   return (
     <div className="flex flex-col gap-3 flex-1">
-      {/* Top Fleet Analytics KPI Cards */}
+      {/* Top Autonomous Robot Performance KPI Cards */}
       <div className="grid grid-cols-2 lg:grid-cols-6 gap-2.5 font-mono">
-        <div className="p-3.5 rounded-xl bg-slate-200/60 border border-slate-300 shadow-xs hover:border-slate-400 transition-all">
-          <div className="text-[10px] text-slate-500 font-bold uppercase tracking-wider">DISTANCE TRAVELLED</div>
-          <div className="text-xl font-black text-slate-900">12.84 <span className="text-xs text-slate-500 font-normal">km</span></div>
-          <div className="text-[10px] text-emerald-700 font-bold">● +2.4km today</div>
+        <div className="clay-card p-3.5 hover:border-slate-300 transition-all">
+          <div className="text-[10px] text-slate-500 font-bold uppercase tracking-wider">DISTANCE RUN</div>
+          <div className="text-xl font-black text-slate-900">12.84 <span className="text-xs text-slate-400 font-normal">km</span></div>
+          <div className="text-[10px] text-emerald-600 font-bold">● +2.4km today</div>
         </div>
 
-        <div className="p-3.5 rounded-xl bg-slate-200/60 border border-slate-300 shadow-xs hover:border-slate-400 transition-all">
-          <div className="text-[10px] text-slate-500 font-bold uppercase tracking-wider">MISSION UPTIME</div>
+        <div className="clay-card p-3.5 hover:border-slate-300 transition-all">
+          <div className="text-[10px] text-slate-500 font-bold uppercase tracking-wider">ROBOT UPTIME</div>
           <div className="text-xl font-black text-slate-900">04:42:15</div>
-          <div className="text-[10px] text-slate-600 font-bold">99.9% availability</div>
+          <div className="text-[10px] text-slate-500 font-semibold">99.9% operational</div>
         </div>
 
-        <div className="p-3.5 rounded-xl bg-slate-200/60 border border-slate-300 shadow-xs hover:border-slate-400 transition-all">
-          <div className="text-[10px] text-slate-500 font-bold uppercase tracking-wider">NAV2 SUCCESS RATE</div>
-          <div className="text-xl font-black text-emerald-700">98.6 <span className="text-xs text-slate-600 font-normal">%</span></div>
-          <div className="text-[10px] text-slate-600 font-bold">71/72 goals reached</div>
+        <div className="clay-card p-3.5 hover:border-slate-300 transition-all">
+          <div className="text-[10px] text-slate-500 font-bold uppercase tracking-wider">NAV2 SUCCESS</div>
+          <div className="text-xl font-black text-emerald-600">98.6 <span className="text-xs text-slate-400 font-normal">%</span></div>
+          <div className="text-[10px] text-slate-500 font-semibold">71/72 goals reached</div>
         </div>
 
-        <div className="p-3.5 rounded-xl bg-slate-200/60 border border-slate-300 shadow-xs hover:border-slate-400 transition-all">
-          <div className="text-[10px] text-slate-500 font-bold uppercase tracking-wider">CRUISE VELOCITY</div>
-          <div className="text-xl font-black text-slate-900">0.25 <span className="text-xs text-slate-600 font-normal">m/s</span></div>
-          <div className="text-[10px] text-slate-600 font-bold">Max 0.45 m/s</div>
+        <div className="clay-card p-3.5 hover:border-slate-300 transition-all">
+          <div className="text-[10px] text-slate-500 font-bold uppercase tracking-wider">CRUISE SPEED</div>
+          <div className="text-xl font-black text-slate-900">0.25 <span className="text-xs text-slate-400 font-normal">m/s</span></div>
+          <div className="text-[10px] text-slate-500 font-semibold">Max 0.45 m/s</div>
         </div>
 
-        <div className="p-3.5 rounded-xl bg-slate-200/60 border border-slate-300 shadow-xs hover:border-slate-400 transition-all">
+        <div className="clay-card p-3.5 hover:border-slate-300 transition-all">
           <div className="text-[10px] text-slate-500 font-bold uppercase tracking-wider">BATTERY CYCLES</div>
-          <div className="text-xl font-black text-amber-700">42 <span className="text-xs text-slate-600 font-normal">cycles</span></div>
-          <div className="text-[10px] text-emerald-700 font-bold">100% SOH (Good)</div>
+          <div className="text-xl font-black text-orange-600">42 <span className="text-xs text-slate-400 font-normal">cycles</span></div>
+          <div className="text-[10px] text-emerald-600 font-bold">100% SOH (Good)</div>
         </div>
 
-        <div className="p-3.5 rounded-xl bg-slate-200/60 border border-slate-300 shadow-xs hover:border-slate-400 transition-all">
-          <div className="text-[10px] text-slate-500 font-bold uppercase tracking-wider">E-STOP INCIDENTS</div>
-          <div className="text-xl font-black text-emerald-700">0 <span className="text-xs text-slate-600 font-normal">faults</span></div>
-          <div className="text-[10px] text-emerald-700 font-bold">Zero safety violations</div>
+        <div className="clay-card p-3.5 hover:border-slate-300 transition-all">
+          <div className="text-[10px] text-slate-500 font-bold uppercase tracking-wider">SAFETY FAULTS</div>
+          <div className="text-xl font-black text-emerald-600">0 <span className="text-xs text-slate-400 font-normal">faults</span></div>
+          <div className="text-[10px] text-emerald-600 font-bold">Zero violations</div>
         </div>
       </div>
 
       {/* Main Rolling Event Logs & Diagnostics Terminal */}
-      <div className="panel flex-1 flex flex-col overflow-hidden min-h-[500px]">
+      <div className="clay-card flex-1 flex flex-col overflow-hidden min-h-[500px]">
         {/* Terminal Header Bar */}
-        <div className="panel-header py-2.5 px-3.5 bg-slate-900 border-b border-slate-800 text-white">
+        <div className="panel-header py-2.5 px-4 bg-slate-950 border-b border-slate-800 text-white">
           <div className="flex items-center gap-2">
-            <Terminal className="w-4 h-4 text-yellow-400" />
+            <Terminal className="w-4 h-4 text-orange-500" />
             <span className="font-bold text-xs text-white tracking-wider font-mono">
               REAL-TIME ROLLING SYSTEM EVENT STREAM
             </span>
@@ -129,9 +129,9 @@ export default function AnalyticsTemplate({
             {/* Auto Scroll Toggle Button */}
             <button
               onClick={() => setAutoScroll(!autoScroll)}
-              className={`px-2.5 py-1 rounded-lg border text-xs font-mono font-bold flex items-center gap-1.5 transition-all cursor-pointer ${
+              className={`px-3 py-1 rounded-xl border text-xs font-mono font-bold flex items-center gap-1.5 transition-all cursor-pointer ${
                 autoScroll
-                  ? 'bg-yellow-400 text-slate-950 border-yellow-500 shadow-2xs font-extrabold'
+                  ? 'btn-clay-orange font-extrabold shadow-xs'
                   : 'bg-slate-800 border-slate-700 text-slate-300 hover:text-white hover:bg-slate-700'
               }`}
               title="Automatically scroll down as new event logs arrive"
@@ -142,7 +142,7 @@ export default function AnalyticsTemplate({
 
             <button
               onClick={handleExportLogs}
-              className="p-1.5 rounded-lg bg-slate-800 border border-slate-700 hover:bg-slate-700 text-slate-300 hover:text-white transition-colors cursor-pointer"
+              className="p-1.5 rounded-xl bg-slate-800 border border-slate-700 hover:bg-slate-700 text-slate-300 hover:text-white transition-colors cursor-pointer"
               title="Export logs as JSON file"
             >
               <Download className="w-3.5 h-3.5" />
@@ -150,7 +150,7 @@ export default function AnalyticsTemplate({
 
             <button
               onClick={() => setLogs([])}
-              className="p-1.5 rounded-lg bg-slate-800 border border-slate-700 hover:bg-red-900/60 text-slate-400 hover:text-red-400 transition-colors cursor-pointer"
+              className="p-1.5 rounded-xl bg-slate-800 border border-slate-700 hover:bg-red-900/60 text-slate-400 hover:text-red-400 transition-colors cursor-pointer"
               title="Clear log buffer"
             >
               <Trash2 className="w-3.5 h-3.5" />
@@ -159,16 +159,16 @@ export default function AnalyticsTemplate({
         </div>
 
         {/* Filters Bar */}
-        <div className="p-2.5 bg-slate-950 border-b border-slate-800 flex flex-wrap items-center justify-between gap-2 text-xs font-mono">
+        <div className="p-3 bg-slate-900 border-b border-slate-800 flex flex-wrap items-center justify-between gap-2.5 text-xs font-mono">
           <div className="flex items-center gap-2 flex-1 max-w-sm">
             <div className="relative flex-1">
-              <Search className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-1/2 -translate-y-1/2" />
+              <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
               <input
                 type="text"
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 placeholder="Filter logs by keyword..."
-                className="w-full bg-slate-900 border border-slate-700 rounded-lg pl-8 pr-3 py-1 text-xs text-white placeholder-slate-400 focus:outline-none focus:border-yellow-400 focus:ring-1 focus:ring-yellow-400"
+                className="w-full bg-slate-950 border border-slate-700 rounded-xl pl-8.5 pr-3 py-1.5 text-xs text-white placeholder-slate-400 focus:outline-none focus:border-orange-500 focus:ring-1 focus:ring-orange-500"
               />
             </div>
           </div>
@@ -179,10 +179,10 @@ export default function AnalyticsTemplate({
               <button
                 key={lvl}
                 onClick={() => setSelectedLevel(lvl)}
-                className={`px-2.5 py-0.5 rounded text-[10px] font-bold transition-all cursor-pointer ${
+                className={`px-3 py-1 rounded-xl text-[10px] font-bold transition-all cursor-pointer ${
                   selectedLevel === lvl
-                    ? 'bg-yellow-400 text-slate-950 font-extrabold shadow-2xs'
-                    : 'bg-slate-900 border border-slate-800 text-slate-400 hover:text-white hover:bg-slate-800'
+                    ? 'bg-gradient-to-r from-orange-500 to-orange-600 text-white font-black shadow-xs'
+                    : 'bg-slate-950 border border-slate-800 text-slate-400 hover:text-white hover:bg-slate-800'
                 }`}
               >
                 {lvl}
@@ -194,7 +194,7 @@ export default function AnalyticsTemplate({
         {/* Smooth Scrolling Log Stream Console */}
         <div
           ref={logContainerRef}
-          className="flex-1 p-3 overflow-y-auto font-mono text-xs space-y-1.5 bg-slate-200/40 smooth-scroll select-text"
+          className="flex-1 p-3.5 overflow-y-auto font-mono text-xs space-y-2 bg-slate-100/60 smooth-scroll select-text"
         >
           {filteredLogs.length === 0 ? (
             <div className="text-center py-16 text-slate-500 italic">
@@ -208,23 +208,23 @@ export default function AnalyticsTemplate({
               return (
                 <div
                   key={log.id}
-                  className={`p-2 rounded-lg border font-mono text-[11px] flex items-start gap-2.5 transition-all shadow-2xs ${
+                  className={`p-2.5 rounded-xl border font-mono text-[11px] flex items-start gap-2.5 transition-all shadow-2xs ${
                     isError
-                      ? 'bg-red-50 border-red-300 text-red-900'
+                      ? 'bg-red-50 border-red-300 text-red-950'
                       : isWarn
-                      ? 'bg-amber-100/90 border-amber-300 text-amber-950'
-                      : 'bg-slate-100 border-slate-300 text-slate-800'
+                      ? 'bg-orange-50 border-orange-300 text-orange-950'
+                      : 'bg-white border-slate-200 text-slate-800'
                   }`}
                 >
                   <span className="text-slate-500 select-none shrink-0 font-semibold">{log.time}</span>
-                  <span className={`px-1.5 py-0.2 rounded text-[9px] font-extrabold uppercase shrink-0 ${
+                  <span className={`px-1.5 py-0.2 rounded-md text-[9px] font-extrabold uppercase shrink-0 ${
                     isError ? 'bg-red-600 text-white' :
-                    isWarn ? 'bg-amber-500 text-slate-950' :
+                    isWarn ? 'bg-orange-500 text-white' :
                     'bg-slate-200 text-slate-800 border border-slate-300'
                   }`}>
                     {log.level}
                   </span>
-                  <span className="px-1.5 py-0.2 rounded bg-amber-100 text-amber-900 text-[9px] font-extrabold uppercase border border-amber-300 shrink-0">
+                  <span className="px-1.5 py-0.2 rounded-md bg-orange-100 text-orange-900 text-[9px] font-extrabold uppercase border border-orange-200 shrink-0">
                     {log.category}
                   </span>
                   <span className="flex-1 text-slate-800 leading-relaxed break-words">{log.msg}</span>
@@ -235,13 +235,13 @@ export default function AnalyticsTemplate({
         </div>
 
         {/* Footer info bar */}
-        <div className="p-2 px-4 bg-slate-900 border-t border-slate-800 flex items-center justify-between text-[11px] font-mono text-slate-400">
+        <div className="p-2.5 px-4 bg-slate-950 border-t border-slate-800 flex items-center justify-between text-[11px] font-mono text-slate-400">
           <div>
-            Showing <strong className="text-white">{filteredLogs.length}</strong> of <strong className="text-white">{logs.length}</strong> logged events
+            Showing <strong className="text-white">{filteredLogs.length}</strong> of <strong className="text-white">{logs.length}</strong> events
           </div>
           <div className="flex items-center gap-2">
-            <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
-            <span className="text-slate-300 font-semibold">ROS 2 /rosout WebSocket Listener Active</span>
+            <span className="h-2 w-2 rounded-full bg-emerald-400 animate-pulse"></span>
+            <span className="text-slate-300 font-semibold">ROS 2 /rosout Stream Live</span>
           </div>
         </div>
       </div>
