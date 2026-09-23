@@ -13,7 +13,8 @@ export default function MapViewer({
   onSendGoal,
   onSaveLocationAtPose,
   onSetInitialPose,
-  lidarOffsetX: propLidarOffsetX = 0.20
+  // Matches the fixed base_link -> lidar_link URDF transform (x = 0.22 m).
+  lidarOffsetX: propLidarOffsetX = 0.22
 }) {
   const canvasRef = useRef(null);
   const offscreenCanvasRef = useRef(null);
