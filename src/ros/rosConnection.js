@@ -337,8 +337,12 @@ class ROSConnectionManager {
     this.topics.cmdVel = new ROSLIB.Topic({
       ros: this.ros,
       name: '/cmd_vel',
-      messageType: 'geometry_msgs/Twist'
+      messageType: 'geometry_msgs/Twist',
+      queue_length: 1
     });
+    // Advertise explicitly so rosbridge registers the teleoperation publisher
+    // as soon as the dashboard connects, before the first button press.
+    this.topics.cmdVel.advertise();
 
     this.topics.command = new ROSLIB.Topic({
       ros: this.ros,
