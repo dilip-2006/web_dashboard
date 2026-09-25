@@ -522,8 +522,10 @@ class ROSConnectionManager {
     // forwards it to Nav2 asynchronously. Calling the navigation service
     // first can block until Nav2 finishes the goal, making the dashboard look
     // frozen and delaying the actual goal dispatch.
+    // /goal_pose is consumed by the robot location manager and forwarded to
+    // Nav2. Do not also send the JSON command: that would dispatch the same
+    // goal twice through two subscriptions.
     this.sendGoal(numX, numY, numYaw);
-    this.sendCommand({ action: 'navigate_to_pose', x: numX, y: numY, yaw: numYaw });
     return { success: true, message: `Goal dispatched to (${numX.toFixed(2)}, ${numY.toFixed(2)})` };
   }
 
@@ -533,30 +535,6 @@ class ROSConnectionManager {
     const numY = Number(y) || 0.0;
     const numYaw = Number(yaw) || 0.0;
 
-    if (this.connected && this.topics.initialPose) {
-      const cy = Math.cos(numYaw * 0.5);
-      const sy = Math.sin(numYaw * 0.5);
-      const cov = new Array(36).fill(0);
-      cov[0] = 0.25;
-      cov[7] = 0.25;
-      cov[35] = 0.068;
-
-      const initMsg = new ROSLIB.Message({
-        header: {
-          stamp: { sec: 0, nanosec: 0 },
-          frame_id: frameId
-        },
-        pose: {
-          pose: {
-            position: { x: numX, y: numY, z: 0.0 },
-            orientation: { x: 0.0, y: 0.0, z: sy, w: cy }
-          },
-          covariance: cov
-        }
-      });
-      this.topics.initialPose.publish(initMsg);
-    }
-
     try {
       return await this.callService('/amr/set_initial_pose', 'bumbleb_bot/srv/SetInitialPose', {
         x: numX,
@@ -565,6 +543,26 @@ class ROSConnectionManager {
       });
     } catch (err) {
       console.warn('set_initial_pose service call fallback:', err);
+      // The service is the authoritative path. Only publish the fallback
+      // topic when the service is unavailable or times out.
+      if (this.connected && this.topics.initialPose) {
+        const cy = Math.cos(numYaw * 0.5);
+        const sy = Math.sin(numYaw * 0.5);
+        const cov = new Array(36).fill(0);
+        cov[0] = 0.25;
+        cov[7] = 0.25;
+        cov[35] = 0.068;
+        this.topics.initialPose.publish(new ROSLIB.Message({
+          header: { stamp: { sec: 0, nanosec: 0 }, frame_id: frameId },
+          pose: {
+            pose: {
+              position: { x: numX, y: numY, z: 0.0 },
+              orientation: { x: 0.0, y: 0.0, z: sy, w: cy }
+            },
+            covariance: cov
+          }
+        }));
+      }
       this.sendCommand({ action: 'set_initial_pose', x: numX, y: numY, yaw: numYaw });
       return { success: true, message: `Initial pose set to (${numX.toFixed(2)}, ${numY.toFixed(2)})` };
     }
