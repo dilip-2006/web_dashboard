@@ -261,7 +261,7 @@ class ROSConnectionManager {
       name: '/map',
       messageType: 'nav_msgs/OccupancyGrid',
       compression: 'cbor',
-      throttle_rate: 1000,
+      throttle_rate: 3000,
       queue_length: 1
     });
     this.topics.map.subscribe((msg) => {
@@ -276,7 +276,7 @@ class ROSConnectionManager {
         name,
         messageType: 'nav_msgs/OccupancyGrid',
         compression: 'cbor',
-        throttle_rate: 500,
+        throttle_rate: 1500,
         queue_length: 1
       });
       this.topics[key].subscribe((msg) => this._emit(event, msg));
@@ -289,7 +289,8 @@ class ROSConnectionManager {
       ros: this.ros,
       name: '/scan',
       messageType: 'sensor_msgs/LaserScan',
-      throttle_rate: 200,
+      compression: 'cbor',
+      throttle_rate: 300,
       queue_length: 1 // drop stale scans instead of buffering them
     });
     this.topics.scan.subscribe((msg) => {
@@ -302,7 +303,7 @@ class ROSConnectionManager {
         ros: this.ros,
         name,
         messageType: 'nav_msgs/Path',
-        throttle_rate: 200,
+        throttle_rate: 500,
         queue_length: 1
       });
       this.topics[key].subscribe((msg) => this._emit(event, msg));
@@ -321,7 +322,8 @@ class ROSConnectionManager {
       ros: this.ros,
       name: '/odom',
       messageType: 'nav_msgs/Odometry',
-      throttle_rate: 200,
+      compression: 'cbor',
+      throttle_rate: 500,
       queue_length: 1
     });
     this.topics.odom.subscribe((msg) => this._emit('odom', msg));
