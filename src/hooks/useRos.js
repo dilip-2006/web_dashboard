@@ -56,6 +56,10 @@ export function useRos() {
       setConnected(false);
       setNotice('ROS Bridge disconnected');
     };
+    const onError = () => {
+      setConnected(false);
+      setNotice(`ROS Bridge connection error (${rosConnection.url})`);
+    };
     const onState = (data) => setSystemState(data);
     const onHealth = (data) => setSystemHealth(data);
     const onNav = (data) => {
@@ -112,6 +116,7 @@ export function useRos() {
 
     rosConnection.on('connection', onConn);
     rosConnection.on('close', onClose);
+    rosConnection.on('error', onError);
     rosConnection.on('state', onState);
     rosConnection.on('health', onHealth);
     rosConnection.on('navStatus', onNav);
@@ -131,6 +136,7 @@ export function useRos() {
     return () => {
       rosConnection.off('connection', onConn);
       rosConnection.off('close', onClose);
+      rosConnection.off('error', onError);
       rosConnection.off('state', onState);
       rosConnection.off('health', onHealth);
       rosConnection.off('navStatus', onNav);

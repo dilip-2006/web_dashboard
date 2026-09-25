@@ -56,7 +56,7 @@ class ROSConnectionManager {
 
   connect(customUrl = null) {
     this.manualDisconnect = false;
-    if (customUrl && customUrl !== this.url) {
+    if (customUrl) {
       this.url = customUrl;
       if (typeof window !== 'undefined') {
         localStorage.setItem('rosbridge_url', customUrl);
@@ -356,24 +356,28 @@ class ROSConnectionManager {
       name: '/amr/command',
       messageType: 'std_msgs/String'
     });
+    this.topics.command.advertise();
 
     this.topics.locationCommand = new ROSLIB.Topic({
       ros: this.ros,
       name: '/amr/location_command',
       messageType: 'std_msgs/String'
     });
+    this.topics.locationCommand.advertise();
 
     this.topics.goalPose = new ROSLIB.Topic({
       ros: this.ros,
       name: '/goal_pose',
       messageType: 'geometry_msgs/PoseStamped'
     });
+    this.topics.goalPose.advertise();
 
     this.topics.initialPose = new ROSLIB.Topic({
       ros: this.ros,
       name: '/initialpose',
       messageType: 'geometry_msgs/PoseWithCovarianceStamped'
     });
+    this.topics.initialPose.advertise();
   }
 
   // Event Subscription
@@ -460,9 +464,21 @@ class ROSConnectionManager {
         serviceType: serviceType
       });
       const request = new ROSLIB.ServiceRequest(requestData);
+      let settled = false;
+      const timeout = setTimeout(() => {
+        if (settled) return;
+        settled = true;
+        reject(new Error(`ROS service timeout: ${serviceName}`));
+      }, 3000);
       client.callService(request, (result) => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(timeout);
         resolve(result);
       }, (error) => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(timeout);
         reject(error);
       });
     });
