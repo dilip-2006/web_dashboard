@@ -260,7 +260,8 @@ class ROSConnectionManager {
       ros: this.ros,
       name: '/map',
       messageType: 'nav_msgs/OccupancyGrid',
-      compression: 'cbor'
+      compression: 'cbor',
+      throttle_rate: 1000
     });
     this.topics.map.subscribe((msg) => {
       this._emit('map', msg);
@@ -273,7 +274,8 @@ class ROSConnectionManager {
         ros: this.ros,
         name,
         messageType: 'nav_msgs/OccupancyGrid',
-        compression: 'cbor'
+        compression: 'cbor',
+        throttle_rate: 500
       });
       this.topics[key].subscribe((msg) => this._emit(event, msg));
     };
@@ -285,7 +287,7 @@ class ROSConnectionManager {
       ros: this.ros,
       name: '/scan',
       messageType: 'sensor_msgs/LaserScan',
-      throttle_rate: 100 // limit to 10Hz in browser
+      throttle_rate: 200 // limit browser traffic to 5Hz
     });
     this.topics.scan.subscribe((msg) => {
       this._emit('scan', msg);
@@ -296,26 +298,26 @@ class ROSConnectionManager {
       this.topics[key] = new ROSLIB.Topic({
         ros: this.ros,
         name,
-        messageType: 'nav_msgs/Path'
+        messageType: 'nav_msgs/Path',
+        throttle_rate: 200
       });
       this.topics[key].subscribe((msg) => this._emit(event, msg));
     };
-    // Humble normally exposes /plan and /local_plan. The namespaced forms
-    // are used by some Nav2 parameter/namespace configurations.
+    // Humble exposes these standard topics. Avoid subscribing to duplicate
+    // namespaced aliases: they carry the same paths and can saturate
+    // rosbridge when costmaps and scans are active too.
     subscribePath('plan', '/plan', 'plan');
-    subscribePath('plannerPlan', '/planner_server/plan', 'plan');
 
     // DWB's commanded trajectory/local plan is useful feedback while the
     // global planner path is being followed.
     subscribePath('localPlan', '/local_plan', 'localPlan');
-    subscribePath('controllerLocalPlan', '/controller_server/local_plan', 'localPlan');
 
     // 11. Odometry (for current linear/angular speed)
     this.topics.odom = new ROSLIB.Topic({
       ros: this.ros,
       name: '/odom',
       messageType: 'nav_msgs/Odometry',
-      throttle_rate: 100
+      throttle_rate: 200
     });
     this.topics.odom.subscribe((msg) => this._emit('odom', msg));
     // 12. Map Operation Result
