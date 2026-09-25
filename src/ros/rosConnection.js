@@ -298,10 +298,9 @@ class ROSConnectionManager {
       name: '/scan',
       messageType: 'sensor_msgs/LaserScan',
       compression: 'cbor',
-      // The RPLidar publishes around 7-10 Hz.  Two scans per second are
-      // enough for a dashboard overlay and prevent large LaserScan messages
-      // from starving command/control traffic over rosbridge.
-      throttle_rate: 500,
+      // Keep at most one current scan in flight.  A 500 ms throttle makes
+      // the laser overlay visibly lag behind the robot while driving.
+      throttle_rate: 100,
       queue_length: 1 // drop stale scans instead of buffering them
     });
     this.topics.scan.subscribe((msg) => {

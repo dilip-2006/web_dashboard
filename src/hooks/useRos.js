@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import rosConnection from '../ros/rosConnection';
 
 const INITIAL_LOCATIONS = [];
@@ -181,13 +181,16 @@ export function useRos() {
     return () => clearInterval(simInterval);
   }, [connected]);
 
-  const sendVelocity = (vx, wz) => {
+  // Keep this callback identity stable while telemetry updates arrive. If it
+  // changes on every pose update, Teleop's cleanup effect publishes an extra
+  // zero command on every render and can saturate rosbridge's input queue.
+  const sendVelocity = useCallback((vx, wz) => {
     simVelRef.current = { vx, wz };
     setVelocity({ linear: vx, angular: wz });
     if (connected) {
       rosConnection.sendVelocity(vx, wz);
     }
-  };
+  }, [connected]);
 
   const sendGoal = (x, y, yaw = 0.0, frame = 'map') => {
     if (connected) {
