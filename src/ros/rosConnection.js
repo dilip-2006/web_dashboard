@@ -11,6 +11,7 @@ class ROSConnectionManager {
     this.connected = false;
     this.connecting = false;
     this.reconnectTimer = null;
+    this.reconnectAttempt = 0;
     this.callbacks = {
       connection: [],
       error: [],
@@ -86,6 +87,7 @@ class ROSConnectionManager {
       this.ros.on('connection', () => {
         this.connected = true;
         this.connecting = false;
+        this.reconnectAttempt = 0;
         if (this.reconnectTimer) {
           clearTimeout(this.reconnectTimer);
           this.reconnectTimer = null;
@@ -142,10 +144,16 @@ class ROSConnectionManager {
   _scheduleReconnect() {
     if (this.manualDisconnect) return;
     if (!this.reconnectTimer) {
+      // Do not hammer rosbridge while the robot is rebooting or the network
+      // is unavailable.  Repeated handshakes can fill rosbridge's queues and
+      // also leave stale browser subscriptions behind.
+      const delays = [1000, 2000, 4000, 8000, 15000, 30000];
+      const delay = delays[Math.min(this.reconnectAttempt, delays.length - 1)];
+      this.reconnectAttempt += 1;
       this.reconnectTimer = setTimeout(() => {
         this.reconnectTimer = null;
         this.connect();
-      }, 3000);
+      }, delay);
     }
   }
 
@@ -261,7 +269,7 @@ class ROSConnectionManager {
       name: '/map',
       messageType: 'nav_msgs/OccupancyGrid',
       compression: 'cbor',
-      throttle_rate: 3000,
+      throttle_rate: 10000,
       queue_length: 1
     });
     this.topics.map.subscribe((msg) => {
@@ -276,7 +284,7 @@ class ROSConnectionManager {
         name,
         messageType: 'nav_msgs/OccupancyGrid',
         compression: 'cbor',
-        throttle_rate: 1500,
+        throttle_rate: 5000,
         queue_length: 1
       });
       this.topics[key].subscribe((msg) => this._emit(event, msg));
@@ -290,7 +298,10 @@ class ROSConnectionManager {
       name: '/scan',
       messageType: 'sensor_msgs/LaserScan',
       compression: 'cbor',
-      throttle_rate: 300,
+      // The RPLidar publishes around 7-10 Hz.  Two scans per second are
+      // enough for a dashboard overlay and prevent large LaserScan messages
+      // from starving command/control traffic over rosbridge.
+      throttle_rate: 500,
       queue_length: 1 // drop stale scans instead of buffering them
     });
     this.topics.scan.subscribe((msg) => {
@@ -303,7 +314,7 @@ class ROSConnectionManager {
         ros: this.ros,
         name,
         messageType: 'nav_msgs/Path',
-        throttle_rate: 500,
+        throttle_rate: 2000,
         queue_length: 1
       });
       this.topics[key].subscribe((msg) => this._emit(event, msg));
@@ -323,7 +334,7 @@ class ROSConnectionManager {
       name: '/odom',
       messageType: 'nav_msgs/Odometry',
       compression: 'cbor',
-      throttle_rate: 500,
+      throttle_rate: 1000,
       queue_length: 1
     });
     this.topics.odom.subscribe((msg) => this._emit('odom', msg));
