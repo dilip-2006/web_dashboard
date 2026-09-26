@@ -258,7 +258,11 @@ export default function MapViewer({
     }
 
     // 4. Draw LaserScan Points & Field of View
-    if (showLaser && laserScan && laserScan.ranges && robotPose) {
+    // The static map and paths are in `map`. During READY/teleoperation the
+    // pose publisher intentionally falls back to `odom`; drawing that pose on
+    // the map would mix coordinate frames and make the scan appear to slide.
+    if (showLaser && laserScan && laserScan.ranges && robotPose &&
+        (!robotPose.frame_id || robotPose.frame_id === 'map')) {
       const rx = robotPose.x || 0;
       const ry = robotPose.y || 0;
       const ryaw = robotPose.yaw || 0;

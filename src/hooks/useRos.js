@@ -43,6 +43,8 @@ export function useRos() {
   const [notice, setNotice] = useState('');
 
   const simVelRef = useRef({ vx: 0.0, wz: 0.0 });
+  const lastBridgePoseAtRef = useRef(0);
+  const lastPoseStampRef = useRef(0);
 
   useEffect(() => {
     rosConnection.connect();
@@ -64,9 +66,6 @@ export function useRos() {
     const onHealth = (data) => setSystemHealth(data);
     const onNav = (data) => {
       setNavStatus(data);
-      if (data.robot_pose) {
-        setRobotPose(data.robot_pose);
-      }
     };
     const onLocs = (data) => setLocations(Array.isArray(data) ? data : []);
     const onMaps = (data) => setMaps(Array.isArray(data) && data.length > 0 ? data : INITIAL_MAPS);
@@ -91,11 +90,43 @@ export function useRos() {
           angular: data.twist.twist.angular.z
         });
       }
+
+      // /odom is the live motion source while SLAM/AMCL is stopped. Use it
+      // only when the TF-derived bridge pose is not fresh; once map->base_link
+      // is available, /amr/robot_pose remains authoritative in the map frame.
+      if (
+        data.pose && data.pose.pose &&
+        Date.now() - lastBridgePoseAtRef.current > 500
+      ) {
+        const p = data.pose.pose;
+        const q = p.orientation || {};
+        const sinyCosp = 2 * ((q.w || 0) * (q.z || 0) + (q.x || 0) * (q.y || 0));
+        const cosyCosp = 1 - 2 * ((q.y || 0) * (q.y || 0) + (q.z || 0) * (q.z || 0));
+        const yaw = Math.atan2(sinyCosp, cosyCosp);
+        setRobotPose({
+          x: p.position?.x || 0,
+          y: p.position?.y || 0,
+          yaw,
+          yaw_deg: yaw * 180 / Math.PI,
+          frame_id: data.header?.frame_id || 'odom',
+          valid: true
+        });
+      }
     };
     const onPose = (msg) => {
       if (!msg) return;
+      // rosbridge can deliver queued messages after a reconnect or under
+      // network load. Reject an older ROS-time sample so a delayed packet
+      // cannot move the marker backwards.
+      const stamp = msg.header?.stamp;
+      const stampSec = stamp
+        ? Number(stamp.sec || 0) + Number(stamp.nanosec || stamp.nsec || 0) / 1e9
+        : 0;
+      if (stampSec > 0 && stampSec < lastPoseStampRef.current) return;
+      if (stampSec > 0) lastPoseStampRef.current = stampSec;
+      lastBridgePoseAtRef.current = Date.now();
       if (msg.x != null && msg.y != null) {
-        setRobotPose(msg);
+        setRobotPose({ ...msg, frame_id: msg.frame_id || 'map' });
       } else if (msg.pose && msg.pose.position) {
         const q = msg.pose.orientation;
         let yaw = 0;
@@ -109,6 +140,7 @@ export function useRos() {
           y: msg.pose.position.y,
           yaw,
           yaw_deg: (yaw * 180 / Math.PI) % 360,
+          frame_id: msg.header?.frame_id || 'map',
           valid: true
         });
       }

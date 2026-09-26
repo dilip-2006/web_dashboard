@@ -202,7 +202,12 @@ class ROSConnectionManager {
     this.topics.pose = new ROSLIB.Topic({
       ros: this.ros,
       name: '/amr/robot_pose',
-      messageType: 'geometry_msgs/PoseStamped'
+      messageType: 'geometry_msgs/PoseStamped',
+      // The pose publisher runs at 30 Hz. Keep the newest sample moving
+      // through rosbridge instead of allowing a slow WebSocket client to
+      // build up a backlog and render old robot positions.
+      queue_length: 1,
+      throttle_rate: 33
     });
     this.topics.pose.subscribe((msg) => {
       this._emit('pose', msg);
@@ -333,7 +338,9 @@ class ROSConnectionManager {
       name: '/odom',
       messageType: 'nav_msgs/Odometry',
       compression: 'cbor',
-      throttle_rate: 1000,
+      // Odometry is the fast live-motion fallback while AMCL/SLAM is not
+      // active. One second makes the robot marker visibly jump during drive.
+      throttle_rate: 50,
       queue_length: 1
     });
     this.topics.odom.subscribe((msg) => this._emit('odom', msg));
