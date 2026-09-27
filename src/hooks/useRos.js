@@ -263,7 +263,12 @@ export function useRos() {
 
   const setInitialPose = (x, y, yaw = 0.0) => {
     if (connected) {
-      rosConnection.setInitialPose(x, y, yaw);
+      rosConnection.setInitialPose(x, y, yaw).then((result) => {
+        setNotice(result?.message || 'Initial pose sent to AMCL');
+        setTimeout(() => setNotice(''), 5000);
+      }).catch((err) => {
+        setNotice(`Initial pose failed: ${err.message}`);
+      });
     } else {
       setRobotPose({ x: Number(x) || 0, y: Number(y) || 0, yaw: Number(yaw) || 0, yaw_deg: ((Number(yaw) || 0) * 180 / Math.PI) % 360, valid: true });
       setNotice(`Initial pose set to (${Number(x).toFixed(2)}, ${Number(y).toFixed(2)})`);
@@ -273,7 +278,16 @@ export function useRos() {
 
   const setMode = (mode, mapName = '') => {
     if (connected) {
-      rosConnection.setMode(mode, mapName);
+      rosConnection.setMode(mode, mapName).then((result) => {
+        if (result?.success === false) {
+          setNotice(result.message || `Unable to enter ${mode}`);
+        } else if (result?.message) {
+          setNotice(result.message);
+        }
+        setTimeout(() => setNotice(''), 7000);
+      }).catch((err) => {
+        setNotice(`Mode change failed: ${err.message}`);
+      });
     } else {
       setSystemState(prev => ({
         ...prev,
